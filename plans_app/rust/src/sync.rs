@@ -20,7 +20,7 @@ pub struct SyncState {
 
 pub fn get_sync_state() -> Result<SyncState, String> {
     db::with_db(|conn| {
-        conn.query_row(
+        Ok(conn.query_row(
             "SELECT snapshot_version, last_synced_at, last_remote_checksum, device_id, last_uploaded_version \
              FROM sync_state WHERE id = 1", [],
             |row| Ok(SyncState {
@@ -30,7 +30,7 @@ pub fn get_sync_state() -> Result<SyncState, String> {
                 device_id: row.get(3)?,
                 last_uploaded_version: row.get(4)?,
             })
-        ).map_err(|e| e.to_string())
+        )?)
     })
 }
 
@@ -46,7 +46,7 @@ pub fn set_sync_state(state: &SyncState) -> Result<(), String> {
                 state.device_id,
                 state.last_uploaded_version,
             ],
-        ).map_err(|e| e.to_string())?;
+        )?;
         Ok(())
     })
 }
@@ -85,12 +85,9 @@ pub fn create_snapshot(
     // 1. Backup API -> temp file (consistent snapshot with minimal locking)
     let backup_path = format!("{}.sync_backup", db_path);
     db::with_db(|src| {
-        let mut dst = rusqlite::Connection::open(&backup_path).map_err(|e| e.to_string())?;
-        let backup = rusqlite::backup::Backup::new(src, &mut dst)
-            .map_err(|e| e.to_string())?;
-        backup
-            .run_to_completion(100, std::time::Duration::from_millis(250), None)
-            .map_err(|e| e.to_string())?;
+        let mut dst = rusqlite::Connection::open(&backup_path)?;
+        let backup = rusqlite::backup::Backup::new(src, &mut dst)?;
+        backup.run_to_completion(100, std::time::Duration::from_millis(250), None)?;
         Ok(())
     })?;
 

@@ -185,6 +185,15 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             )
             views.setOnClickPendingIntent(R.id.tv_header_title, headerPi)
 
+            val rootIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
+                action = "es.antonborri.home_widget.action.LAUNCH"
+            }
+            val rootPi = PendingIntent.getActivity(
+                context, widgetId * 100, rootIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            views.setOnClickPendingIntent(R.id.ll_root, rootPi)
+
             val addIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
                 action = "es.antonborri.home_widget.action.LAUNCH"
                 putExtra("action", "add_task")

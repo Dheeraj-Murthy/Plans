@@ -30,3 +30,10 @@ Future<Project> updateProject({
 
 Future<void> deleteProject({required String id}) =>
     RustLib.instance.api.crateApiProjectsDeleteProject(id: id);
+
+/// Upsert a project from local state into the current DB.
+/// Inserts if absent; updates name/color_index if present without touching is_deleted.
+Future<void> upsertProject({required String projectJson}) => RustLib
+    .instance
+    .api
+    .crateApiProjectsUpsertProject(projectJson: projectJson);

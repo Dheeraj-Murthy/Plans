@@ -72,6 +72,11 @@ void main() async {
       child: PlansApp(),
     ),
   );
+
+  // Request notification permissions after the Activity is attached.
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    Future.microtask(() => NotificationService.requestMobilePermissions());
+  }
 }
 
 /// Try dev path (flutter run) first, fall back to soname (release bundle).

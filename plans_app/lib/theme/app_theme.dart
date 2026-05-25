@@ -21,6 +21,7 @@ class AppColors {
   static const warning = Color(0xFFFBBF24);
   static const danger = Color(0xFFF87171);
 
+  static const priorityCritical = Color(0xFFFF1744);
   static const priorityHigh = Color(0xFFE45C5C);
   static const priorityMedium = Color(0xFFE8943A);
   static const priorityLow = Color(0xFF5E8AE4);

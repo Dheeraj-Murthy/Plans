@@ -1,4 +1,4 @@
-enum TaskPriority { none, low, medium, high }
+enum TaskPriority { none, low, medium, high, critical }
 
 const _absent = Object();
 

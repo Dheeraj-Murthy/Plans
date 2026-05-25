@@ -40,6 +40,7 @@ Future<TaskPriority?> showPriorityMenu(
                     : Icons.flag_rounded,
                 size: 16,
                 color: switch (p) {
+                  TaskPriority.critical => AppColors.priorityCritical,
                   TaskPriority.high => AppColors.priorityHigh,
                   TaskPriority.medium => AppColors.priorityMedium,
                   TaskPriority.low => AppColors.priorityLow,

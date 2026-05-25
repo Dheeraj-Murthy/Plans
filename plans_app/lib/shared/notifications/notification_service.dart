@@ -1,10 +1,12 @@
-import 'dart:io' show Platform;
+import 'dart:convert';
+import 'dart:io';
 import 'package:alarm/alarm.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../../features/tasks/models/task.dart';
@@ -16,6 +18,21 @@ class _AlarmInfo {
   final String title;
   final ReminderStyle style;
   _AlarmInfo(this.taskId, this.title, this.style);
+
+  Map<String, dynamic> toJson() => {
+    'taskId': taskId,
+    'title': title,
+    'style': style.name,
+  };
+
+  static _AlarmInfo fromJson(Map<String, dynamic> json) => _AlarmInfo(
+    json['taskId'] as String,
+    json['title'] as String,
+    ReminderStyle.values.firstWhere(
+      (s) => s.name == json['style'],
+      orElse: () => ReminderStyle.notification,
+    ),
+  );
 }
 
 class NotificationService {
@@ -54,7 +71,7 @@ class NotificationService {
 
     const settings = InitializationSettings(
       macOS: DarwinInitializationSettings(
-        requestAlertPermission: false,
+        requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
       ),
@@ -63,6 +80,15 @@ class NotificationService {
       settings: settings,
       onDidReceiveNotificationResponse: _onResponse,
     );
+
+    await _fln
+        .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin>()
+        ?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
 
     final permStatus = await _fln
         .resolvePlatformSpecificImplementation<
@@ -78,23 +104,53 @@ class NotificationService {
     await Alarm.init();
     debugPrint('NotificationService: Alarm.init() done');
 
-    if (Platform.isAndroid) {
-      const settings = InitializationSettings(
-        android: AndroidInitializationSettings('@drawable/ic_stat_notification'),
-      );
-      await _fln.initialize(settings: settings);
-      final androidPlugin = _fln
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      final granted = await androidPlugin?.requestNotificationsPermission();
-      _initialized = granted != false;
-      debugPrint(
-        'NotificationService: Android permission granted=$granted initialized=$_initialized',
-      );
-    } else {
-      // iOS permission requested automatically by alarm package on first use
-      _initialized = true;
+    // Initialize timezone data for Android notification scheduling.
+    if (!Platform.isIOS) {
+      try {
+        tz.initializeTimeZones();
+        final localTz = (await FlutterTimezone.getLocalTimezone()).identifier;
+        try {
+          tz.setLocalLocation(tz.getLocation(localTz));
+        } catch (_) {
+          tz.setLocalLocation(tz.UTC);
+        }
+      } catch (_) {}
     }
+
+    // Initialize flutter_local_notifications on both platforms.
+    // Permission requests happen later in requestMobilePermissions()
+    // after the Activity is guaranteed attached (post-runApp).
+    const settings = InitializationSettings(
+      android: AndroidInitializationSettings('ic_stat_notification'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+    );
+    await _fln.initialize(settings: settings);
+    _initialized = true;
+
+    // Pre-create a high-importance channel for Android notifications.
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        final androidPlugin = _fln.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        await androidPlugin?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'plans_notifications',
+            'Plans reminders',
+            description: 'Task due reminders',
+            importance: Importance.high,
+            playSound: true,
+            enableVibration: true,
+          ),
+        );
+      } catch (_) {}
+    }
+
+    // Restore persisted alarm metadata so full-screen alarms survive app restart.
+    await _loadAlarmInfos();
 
     Alarm.ringing.listen((alarmSet) async {
       for (final alarm in alarmSet.alarms) {
@@ -127,6 +183,44 @@ class NotificationService {
 
   static void _onResponse(NotificationResponse response) {}
 
+  // ── Alarm info persistence ────────────────────────────────────────────────
+
+  static Future<File> _alarmInfosFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/_alarm_infos.json');
+  }
+
+  static Future<void> _loadAlarmInfos() async {
+    try {
+      final file = await _alarmInfosFile();
+      if (!file.existsSync()) return;
+      final raw = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      _alarmInfos.clear();
+      for (final entry in raw.entries) {
+        final id = int.tryParse(entry.key);
+        if (id != null) {
+          _alarmInfos[id] = _AlarmInfo.fromJson(entry.value as Map<String, dynamic>);
+        }
+      }
+      debugPrint('NotificationService: loaded ${_alarmInfos.length} alarm infos');
+    } catch (e, st) {
+      debugPrint('NotificationService._loadAlarmInfos failed: $e\n$st');
+    }
+  }
+
+  static Future<void> _saveAlarmInfos() async {
+    if (kIsWeb || Platform.isMacOS) return;
+    try {
+      final file = await _alarmInfosFile();
+      final raw = <String, dynamic>{
+        for (final e in _alarmInfos.entries) '${e.key}': e.value.toJson(),
+      };
+      file.writeAsStringSync(jsonEncode(raw));
+    } catch (e, st) {
+      debugPrint('NotificationService._saveAlarmInfos failed: $e\n$st');
+    }
+  }
+
   // ── ID helpers ───────────────────────────────────────────────────────────
 
   static int _dueId(String taskId) {
@@ -139,18 +233,54 @@ class NotificationService {
     return h == 0 ? 1 : h;
   }
 
+  /// Request notification permissions on mobile.
+  ///
+  /// Must be called AFTER [init] and after the Activity is attached
+  /// (e.g. after `runApp()` or from a widget's `initState`).
+  /// On Android 13+ this shows the system POST_NOTIFICATIONS dialog.
+  /// On iOS this shows the system notification permission dialog.
+  static Future<void> requestMobilePermissions() async {
+    if (kIsWeb || Platform.isMacOS) return;
+    try {
+      if (Platform.isAndroid) {
+        final androidPlugin = _fln
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        final granted = await androidPlugin?.requestNotificationsPermission();
+        debugPrint('NotificationService: Android POST_NOTIFICATIONS granted=$granted');
+        final fsGranted = await androidPlugin?.requestFullScreenIntentPermission();
+        debugPrint('NotificationService: Android USE_FULL_SCREEN_INTENT granted=$fsGranted');
+      } else {
+        final iosPlugin = _fln
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>();
+        final granted = await iosPlugin?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        debugPrint('NotificationService: iOS permission granted=$granted');
+      }
+    } catch (e, st) {
+      debugPrint('NotificationService.requestMobilePermissions failed: $e\n$st');
+    }
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────
 
   static Future<void> scheduleForTask(
     Task task, {
     ReminderStyle? style,
+    bool persist = true,
   }) async {
     if (!_initialized) {
       debugPrint('NotificationService: skip — not initialized');
       return;
     }
-    await cancelForTask(task.id);
-    if (task.dueDate == null || task.isCompleted) return;
+    if (task.dueDate == null || task.isCompleted) {
+      await cancelForTask(task.id);
+      return;
+    }
 
     final now = DateTime.now();
     final dueTime = task.dueDate!;
@@ -159,10 +289,18 @@ class NotificationService {
       'NotificationService: scheduleForTask "${task.title}" due=$dueTime secondsPast=$secondsPast',
     );
 
-    if (secondsPast >= 60) return;
+    if (secondsPast >= 60 && task.priority == TaskPriority.critical) {
+      // Don't reset an already-pending alarm on every app launch.
+      if (_alarmInfos.containsKey(_dueId(task.id))) return;
+    }
 
-    final fireAt =
-        dueTime.isAfter(now) ? dueTime : now.add(const Duration(seconds: 5));
+    await cancelForTask(task.id);
+
+    final fireAt = dueTime.isAfter(now)
+        ? dueTime
+        : secondsPast >= 60
+            ? now.add(const Duration(minutes: 5))
+            : now.add(const Duration(seconds: 5));
 
     final dueStyle = style ?? ReminderStyle.notification;
     final dueId = _dueId(task.id);
@@ -192,6 +330,8 @@ class NotificationService {
         }
       }
     }
+
+    if (persist) await _saveAlarmInfos();
   }
 
   static Future<void> cancelForTask(String taskId) async {
@@ -208,6 +348,7 @@ class NotificationService {
       await _fln.cancel(id: _dueId(taskId));
       await _fln.cancel(id: _reminderId(taskId));
     }
+    await _saveAlarmInfos();
   }
 
   static Future<void> snooze({
@@ -227,6 +368,7 @@ class NotificationService {
       at: fireAt,
       style: ReminderStyle.fullScreenAlarm,
     );
+    await _saveAlarmInfos();
   }
 
   static Future<void> rescheduleAll(List<Task> tasks) async {
@@ -234,13 +376,14 @@ class NotificationService {
     if (!Platform.isMacOS) return;
     for (final task in tasks) {
       if (!task.isCompleted && task.dueDate != null) {
-        await scheduleForTask(task, style: _styleForPriority(task.priority));
+        await scheduleForTask(task, style: _styleForPriority(task.priority), persist: false);
       }
     }
+    await _saveAlarmInfos();
   }
 
   static ReminderStyle _styleForPriority(TaskPriority priority) {
-    return priority == TaskPriority.high
+    return priority == TaskPriority.critical
         ? ReminderStyle.fullScreenAlarm
         : ReminderStyle.notification;
   }
@@ -263,6 +406,15 @@ class NotificationService {
         body: body,
         at: at,
         style: style,
+      );
+      // Also schedule via flutter_local_notifications to ensure the
+      // notification appears even if the alarm service fails to start
+      // its foreground notification (e.g. Android 12+ restrictions).
+      await _scheduleAndroidNotification(
+        id: id,
+        title: title,
+        body: body,
+        at: at,
       );
     }
   }
@@ -314,7 +466,7 @@ class NotificationService {
           loopAudio: true,
           vibrate: true,
           warningNotificationOnKill: Platform.isIOS,
-          androidFullScreenIntent: false,
+          androidFullScreenIntent: style == ReminderStyle.fullScreenAlarm,
           androidStopAlarmOnTermination: false,
           volumeSettings: const VolumeSettings.fixed(volume: 1.0),
           notificationSettings: NotificationSettings(
@@ -327,6 +479,50 @@ class NotificationService {
       debugPrint('NotificationService: alarm set id=$id "$title" at $at');
     } catch (e, st) {
       debugPrint('NotificationService._scheduleAlarm failed: $e\n$st');
+    }
+  }
+
+  /// Schedules a notification via flutter_local_notifications on Android.
+  ///
+  /// This is a reliability layer — if the alarm plugin's foreground service
+  /// notification is suppressed (e.g. Android 12+ restrictions), this ensures
+  /// the user still gets a visible notification in the tray.
+  static Future<void> _scheduleAndroidNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime at,
+  }) async {
+    if (kIsWeb || Platform.isIOS || Platform.isMacOS) return;
+    try {
+      final tzAt = tz.TZDateTime.from(at, tz.local);
+      await _fln.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: tzAt,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'plans_notifications',
+            'Plans reminders',
+            channelDescription: 'Task due reminders',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: 'ic_stat_notification',
+            playSound: true,
+            enableVibration: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+      debugPrint('NotificationService: fln scheduled id=$id "$title" at $tzAt');
+    } catch (e, st) {
+      debugPrint('NotificationService._scheduleAndroidNotification failed: $e\n$st');
     }
   }
 }

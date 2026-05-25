@@ -12,7 +12,7 @@ A cross-platform offline-first task manager with Google Drive sync. Built with F
 
 ## Download
 
-Get the latest build from [Releases](https://github.com/Dheeraj-Murthy/Plans_app/releases).
+Get the latest build from [Releases](https://github.com/Dheeraj-Murthy/Plans/releases).
 
 | Platform | File |
 |----------|------|
@@ -26,7 +26,7 @@ Get the latest build from [Releases](https://github.com/Dheeraj-Murthy/Plans_app
 See [AGENTS.md](AGENTS.md) for full setup guide. Quick start:
 
 ```bash
-cd plans_app
+cd Plans
 flutter pub get
 flutter run -d macos   # or android, ios, linux, windows
 ```
@@ -34,7 +34,7 @@ flutter run -d macos   # or android, ios, linux, windows
 For Rust changes, rebuild the native library:
 
 ```bash
-cd plans_app/rust
+cd Plans/rust
 bash build_macos.sh    # macOS
 bash build_android.sh  # Android (requires cargo-ndk + NDK)
 cargo build --release  # Linux / Windows

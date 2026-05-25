@@ -170,6 +170,7 @@ final filteredTasksProvider = Provider<List<Task>>((ref) {
             return t.dueDate != null;
           }).toList()..sort((a, b) => a.dueDate!.compareTo(b.dueDate!)),
         ViewType.today => tasks.where((t) {
+            if (t.isCompleted) return false;
             final due = t.dueDate;
             if (due == null) return false;
             final now = DateTime.now();
@@ -206,6 +207,13 @@ class TasksNotifier extends Notifier<List<Task>> {
     _db = ref.read(databaseServiceProvider);
     ref.onDispose(() => _widgetUpdateTimer?.cancel());
     _load();
+    ref.listen(projectsProvider, (prev, next) {
+      if (prev == null || prev.length <= next.length) return;
+      final activeIds = next.map((p) => p.id).toSet();
+      state = state.map((t) => activeIds.contains(t.projectId)
+          ? t
+          : t.copyWith(projectId: 'default')).toList();
+    });
     return [];
   }
 
@@ -217,13 +225,15 @@ class TasksNotifier extends Notifier<List<Task>> {
   }
 
   void _load() {
-    _db.getTasks().then((tasks) {
-      state = tasks;
-      NotificationService.rescheduleAll(tasks);
-      WidgetBridge.notifyUpdate(allTasks: state, allProjects: ref.read(projectsProvider));
-    }).catchError((e, st) {
-      debugPrint('TasksNotifier._load failed: $e\n$st');
-    });
+    unawaited(
+      _db.getTasks().then((tasks) {
+        state = tasks;
+        NotificationService.rescheduleAll(tasks);
+        WidgetBridge.notifyUpdate(allTasks: state, allProjects: ref.read(projectsProvider));
+      }).catchError((e, st) {
+        debugPrint('TasksNotifier._load failed: $e\n$st');
+      }),
+    );
   }
 
   Future<Task> addTask({
@@ -268,14 +278,14 @@ class TasksNotifier extends Notifier<List<Task>> {
     newState[index] = toggled;
     state = newState;
 
-    _db.updateTask(toggled);
+    unawaited(_db.updateTask(toggled));
     ref.read(syncServiceProvider.notifier).markDirty();
     if (toggled.isCompleted) {
       NotificationService.cancelForTask(id);
     } else {
       NotificationService.scheduleForTask(
         toggled,
-        style: toggled.priority == TaskPriority.high
+        style: toggled.priority == TaskPriority.critical
             ? ReminderStyle.fullScreenAlarm
             : ReminderStyle.notification,
       );
@@ -286,7 +296,7 @@ class TasksNotifier extends Notifier<List<Task>> {
         final rule = Recurrence.fromStorage(task.recurrence!);
         final nextDue = rule.nextOccurrence(task.dueDate!);
         if (nextDue != null) {
-          _db.insertTask(
+          unawaited(_db.insertTask(
             title: task.title,
             description: task.description,
             dueDate: nextDue,
@@ -303,7 +313,7 @@ class TasksNotifier extends Notifier<List<Task>> {
                   ? ReminderStyle.fullScreenAlarm
                   : ReminderStyle.notification,
             );
-          });
+          }));
         }
       }
       ref.read(uncompletingTaskIdsProvider.notifier).remove(id);
@@ -324,7 +334,7 @@ class TasksNotifier extends Notifier<List<Task>> {
   Task? deleteTask(String id) {
     final task = state.where((t) => t.id == id).firstOrNull;
     state = state.where((t) => t.id != id).toList();
-    _db.deleteTask(id);
+    unawaited(_db.deleteTask(id));
     ref.read(syncServiceProvider.notifier).markDirty();
     NotificationService.cancelForTask(id);
     _debouncedWidgetUpdate();
@@ -350,7 +360,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     final newState = List<Task>.of(state);
     newState[idx] = updated;
     state = newState;
-    _db.updateTask(updated);
+    unawaited(_db.updateTask(updated));
     ref.read(syncServiceProvider.notifier).markDirty();
     NotificationService.scheduleForTask(
       updated,
@@ -366,7 +376,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     final moved = tasks.removeAt(oldIndex);
     tasks.insert(newIndex, moved);
     state = tasks;
-    _db.reorderTasks(tasks.map((t) => t.id).toList());
+    unawaited(_db.reorderTasks(tasks.map((t) => t.id).toList()));
     ref.read(syncServiceProvider.notifier).markDirty();
     _debouncedWidgetUpdate();
   }

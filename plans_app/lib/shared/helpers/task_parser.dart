@@ -76,12 +76,13 @@ class TaskParser {
     void Function(TaskPriority) set,
   ) {
     final m = RegExp(
-      r'(?:^|\s)(p[1234]|!(?:high|medium|low|none))(?=\s|$)',
+      r'(?:^|\s)(p[01234]|!(?:critical|high|medium|low|none))(?=\s|$)',
       caseSensitive: false,
     ).firstMatch(text);
     if (m == null) return text;
 
     final setPriority = switch (m.group(1)!.toLowerCase()) {
+      'p0' || '!critical' => TaskPriority.critical,
       'p1' || '!high' => TaskPriority.high,
       'p2' || '!medium' => TaskPriority.medium,
       'p3' || '!low' => TaskPriority.low,

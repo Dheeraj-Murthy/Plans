@@ -21,7 +21,7 @@ class TaskHighlighter {
   static const _timeColor = Color(0xFF8AB4F8);
 
   static final _priorityRe = RegExp(
-    r'(?:^|\s)(p[1234]|!(?:high|medium|low|none))(?=\s|$)',
+    r'(?:^|\s)(p[01234]|!(?:critical|high|medium|low|none))(?=\s|$)',
     caseSensitive: false,
   );
   static final _projectRe = RegExp(r'@(\w+)', caseSensitive: false);

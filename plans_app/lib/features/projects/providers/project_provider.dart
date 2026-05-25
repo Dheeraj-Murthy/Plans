@@ -81,6 +81,10 @@ class ProjectsNotifier extends Notifier<List<Project>> {
     await _db.deleteProject(id);
     ref.read(syncServiceProvider.notifier).markDirty();
     state = state.where((p) => p.id != id).toList();
+    final selection = ref.read(sidebarSelectionProvider);
+    if (selection is ProjectSelection && selection.projectId == id) {
+      ref.read(sidebarSelectionProvider.notifier).select(const ViewSelection(ViewType.inbox));
+    }
     WidgetBridge.notifyUpdate(allProjects: state);
   }
 }

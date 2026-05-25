@@ -291,12 +291,13 @@ class _StickyComposerState extends ConsumerState<StickyComposer> {
                       Icons.add_rounded,
                       size: 18,
                       color: _priority != TaskPriority.none
-                          ? switch (_priority) {
-                              TaskPriority.high => AppColors.priorityHigh,
-                              TaskPriority.medium => AppColors.priorityMedium,
-                              TaskPriority.low => AppColors.priorityLow,
-                              TaskPriority.none => AppColors.textMuted,
-                            }
+                            ? switch (_priority) {
+                                TaskPriority.critical => AppColors.priorityCritical,
+                                TaskPriority.high => AppColors.priorityHigh,
+                                TaskPriority.medium => AppColors.priorityMedium,
+                                TaskPriority.low => AppColors.priorityLow,
+                                TaskPriority.none => AppColors.textMuted,
+                              }
                           : isExpanded || _isHovered
                               ? AppColors.accent
                               : AppColors.textMuted,
@@ -366,11 +367,13 @@ class _StickyComposerState extends ConsumerState<StickyComposer> {
                             label: _priority == TaskPriority.none
                                 ? 'Priority'
                                 : _priority.name,
-                            color: _priority == TaskPriority.high
-                                ? AppColors.priorityHigh
-                                : _priority == TaskPriority.medium
-                                    ? AppColors.priorityMedium
-                                    : null,
+                            color: _priority == TaskPriority.critical
+                                ? AppColors.priorityCritical
+                                : _priority == TaskPriority.high
+                                    ? AppColors.priorityHigh
+                                    : _priority == TaskPriority.medium
+                                        ? AppColors.priorityMedium
+                                        : null,
                             onTap: _showPriorityMenu,
                           ),
                           AppChip(

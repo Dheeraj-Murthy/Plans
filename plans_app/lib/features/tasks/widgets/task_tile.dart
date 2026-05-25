@@ -64,8 +64,10 @@ class _TaskTileState extends ConsumerState<TaskTile> {
     return '$h12:${m.toString().padLeft(2, '0')} $ampm';
   }
 
-  bool get _hasTime => widget.task.dueDate != null &&
-      (widget.task.dueDate!.hour != 0 || widget.task.dueDate!.minute != 0);
+  bool get _hasTime {
+    final due = widget.task.dueDate;
+    return due != null && (due.hour != 0 || due.minute != 0);
+  }
 
   bool get _isOverdue {
     final due = widget.task.dueDate;
@@ -195,6 +197,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                           height: task.isCompleted ? 0 : 20,
                           decoration: BoxDecoration(
                             color: switch (task.priority) {
+                              TaskPriority.critical => AppColors.priorityCritical,
                               TaskPriority.high => AppColors.priorityHigh,
                               TaskPriority.medium => AppColors.priorityMedium,
                               TaskPriority.low => AppColors.priorityLow,
@@ -226,6 +229,8 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                       }
                                     },
                                     color: switch (task.priority) {
+                                      TaskPriority.critical =>
+                                        AppColors.priorityCritical,
                                       TaskPriority.high =>
                                         AppColors.priorityHigh,
                                       TaskPriority.medium =>
@@ -309,7 +314,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: widget.projectColor!.withValues(alpha: 0.12),
+                              color: (widget.projectColor ?? Colors.grey).withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -319,6 +324,17 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                 color: widget.projectColor,
                               ),
                             ),
+                          ),
+                        ),
+
+                      // Recurrence icon
+                      if (task.recurrence != null && !task.isCompleted)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Icon(
+                            Icons.repeat_outlined,
+                            size: 12,
+                            color: AppColors.accent.withValues(alpha: 0.7),
                           ),
                         ),
 
@@ -439,7 +455,7 @@ class _StrikethroughText extends StatelessWidget {
           children: [
             Text(text, style: style),
             Positioned(
-              bottom: style.fontSize! * 0.4,
+              bottom: (style.fontSize ?? 14) * 0.4,
               left: 0,
               right: 0,
               child: FractionallySizedBox(

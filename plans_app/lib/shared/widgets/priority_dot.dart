@@ -14,6 +14,7 @@ class PriorityDot extends StatelessWidget {
 
   Color? get _color {
     return switch (priority) {
+      TaskPriority.critical => AppColors.priorityCritical,
       TaskPriority.high => AppColors.priorityHigh,
       TaskPriority.medium => AppColors.priorityMedium,
       TaskPriority.low => AppColors.priorityLow,

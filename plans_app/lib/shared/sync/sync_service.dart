@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:plans_app/shared/database/database_service.dart';
@@ -58,10 +59,11 @@ class SyncService extends Notifier<SyncStatus> {
     try {
       await _driveApi.authenticate();
       state = SyncStatus.idle;
-      _doSync();
-    } catch (e) {
+      unawaited(_doSync());
+    } catch (e, st) {
       state = SyncStatus.error;
       _lastError = e.toString();
+      debugPrint('SyncService.authenticate failed: $e\n$st');
     }
   }
 
@@ -92,9 +94,10 @@ class SyncService extends Notifier<SyncStatus> {
       await _downloadIfNewer();
       await _uploadIfNeeded();
       state = SyncStatus.idle;
-    } catch (e) {
+    } catch (e, st) {
       state = SyncStatus.error;
       _lastError = e.toString();
+      debugPrint('SyncService._doSync failed: $e\n$st');
     }
     _isSyncing = false;
   }
@@ -137,6 +140,11 @@ class SyncService extends Notifier<SyncStatus> {
     final local = jsonDecode(await rust_sync.getSyncState());
     if (remoteVer <= (local['snapshot_version'] as int? ?? 0)) return;
 
+    // Snapshot local state before remote overwrites the DB.
+    final localTasks = await _db.getTasks();
+    final localProjects = await _db.getProjects();
+    final localDeletedIds = Set<String>.from(DatabaseService.pendingLocalDeletions);
+
     final encrypted = await _driveApi.downloadSnapshot();
     final userId = _driveApi.googleUserId;
     if (userId == null) throw Exception('Not authenticated');
@@ -151,6 +159,21 @@ class SyncService extends Notifier<SyncStatus> {
     );
 
     await _db.restart();
+
+    // Merge local data back using last-write-wins by updated_at.
+    for (final task in localTasks) {
+      await _db.upsertTask(task);
+    }
+    for (final project in localProjects) {
+      await _db.upsertProject(project);
+    }
+
+    // Re-apply local soft-deletes that the remote snapshot may have overwritten.
+    for (final id in localDeletedIds) {
+      await _db.deleteTask(id);
+    }
+    DatabaseService.pendingLocalDeletions.removeAll(localDeletedIds);
+
     ref.invalidate(tasksProvider);
     ref.invalidate(projectsProvider);
 
