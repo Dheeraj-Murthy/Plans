@@ -68,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -605016674;
+  int get rustContentHash => -1884377990;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -140,6 +140,10 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<Task> crateApiTasksUpdateTask({required String taskJson});
+
+  Future<void> crateApiProjectsUpsertProject({required String projectJson});
+
+  Future<void> crateApiTasksUpsertTask({required String taskJson});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -707,6 +711,65 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiTasksUpdateTaskConstMeta =>
       const TaskConstMeta(debugName: "update_task", argNames: ["taskJson"]);
+
+  @override
+  Future<void> crateApiProjectsUpsertProject({required String projectJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(projectJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 18,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiProjectsUpsertProjectConstMeta,
+        argValues: [projectJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProjectsUpsertProjectConstMeta =>
+      const TaskConstMeta(
+        debugName: "upsert_project",
+        argNames: ["projectJson"],
+      );
+
+  @override
+  Future<void> crateApiTasksUpsertTask({required String taskJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(taskJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 19,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiTasksUpsertTaskConstMeta,
+        argValues: [taskJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiTasksUpsertTaskConstMeta =>
+      const TaskConstMeta(debugName: "upsert_task", argNames: ["taskJson"]);
 
   @protected
   String dco_decode_String(dynamic raw) {

@@ -89,7 +89,9 @@ class _PlatformAdaptiveShellState
         ref.read(syncServiceProvider.notifier).markDirty();
         ref.invalidate(projectsProvider);
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('_checkPendingWidgetSync failed: $e\n$st');
+    }
   }
 
   void _openAddTask() {

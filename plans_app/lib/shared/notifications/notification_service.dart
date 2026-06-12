@@ -1,10 +1,12 @@
-import 'dart:io' show Platform;
+import 'dart:convert';
+import 'dart:io';
 import 'package:alarm/alarm.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../../features/tasks/models/task.dart';
@@ -16,6 +18,21 @@ class _AlarmInfo {
   final String title;
   final ReminderStyle style;
   _AlarmInfo(this.taskId, this.title, this.style);
+
+  Map<String, dynamic> toJson() => {
+    'taskId': taskId,
+    'title': title,
+    'style': style.name,
+  };
+
+  static _AlarmInfo fromJson(Map<String, dynamic> json) => _AlarmInfo(
+    json['taskId'] as String,
+    json['title'] as String,
+    ReminderStyle.values.firstWhere(
+      (s) => s.name == json['style'],
+      orElse: () => ReminderStyle.notification,
+    ),
+  );
 }
 
 class NotificationService {
@@ -96,6 +113,9 @@ class NotificationService {
       _initialized = true;
     }
 
+    // Restore persisted alarm metadata so full-screen alarms survive app restart.
+    await _loadAlarmInfos();
+
     Alarm.ringing.listen((alarmSet) async {
       for (final alarm in alarmSet.alarms) {
         if (_currentFullScreenAlarmId == alarm.id) {
@@ -127,6 +147,44 @@ class NotificationService {
 
   static void _onResponse(NotificationResponse response) {}
 
+  // ── Alarm info persistence ────────────────────────────────────────────────
+
+  static Future<File> _alarmInfosFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/_alarm_infos.json');
+  }
+
+  static Future<void> _loadAlarmInfos() async {
+    try {
+      final file = await _alarmInfosFile();
+      if (!file.existsSync()) return;
+      final raw = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      _alarmInfos.clear();
+      for (final entry in raw.entries) {
+        final id = int.tryParse(entry.key);
+        if (id != null) {
+          _alarmInfos[id] = _AlarmInfo.fromJson(entry.value as Map<String, dynamic>);
+        }
+      }
+      debugPrint('NotificationService: loaded ${_alarmInfos.length} alarm infos');
+    } catch (e, st) {
+      debugPrint('NotificationService._loadAlarmInfos failed: $e\n$st');
+    }
+  }
+
+  static Future<void> _saveAlarmInfos() async {
+    if (kIsWeb || Platform.isMacOS) return;
+    try {
+      final file = await _alarmInfosFile();
+      final raw = <String, dynamic>{
+        for (final e in _alarmInfos.entries) '${e.key}': e.value.toJson(),
+      };
+      file.writeAsStringSync(jsonEncode(raw));
+    } catch (e, st) {
+      debugPrint('NotificationService._saveAlarmInfos failed: $e\n$st');
+    }
+  }
+
   // ── ID helpers ───────────────────────────────────────────────────────────
 
   static int _dueId(String taskId) {
@@ -144,13 +202,16 @@ class NotificationService {
   static Future<void> scheduleForTask(
     Task task, {
     ReminderStyle? style,
+    bool persist = true,
   }) async {
     if (!_initialized) {
       debugPrint('NotificationService: skip — not initialized');
       return;
     }
-    await cancelForTask(task.id);
-    if (task.dueDate == null || task.isCompleted) return;
+    if (task.dueDate == null || task.isCompleted) {
+      await cancelForTask(task.id);
+      return;
+    }
 
     final now = DateTime.now();
     final dueTime = task.dueDate!;
@@ -159,10 +220,24 @@ class NotificationService {
       'NotificationService: scheduleForTask "${task.title}" due=$dueTime secondsPast=$secondsPast',
     );
 
-    if (secondsPast >= 60) return;
+    if (secondsPast >= 60) {
+      // Non-P1 tasks: don't reschedule once overdue.
+      if (task.priority != TaskPriority.high) {
+        await cancelForTask(task.id);
+        return;
+      }
+      // P1 tasks: only schedule if no alarm is already pending — don't
+      // reset the fire time on every app launch (alarm would never fire).
+      if (_alarmInfos.containsKey(_dueId(task.id))) return;
+    }
 
-    final fireAt =
-        dueTime.isAfter(now) ? dueTime : now.add(const Duration(seconds: 5));
+    await cancelForTask(task.id);
+
+    final fireAt = dueTime.isAfter(now)
+        ? dueTime
+        : secondsPast >= 60
+            ? now.add(const Duration(minutes: 5))
+            : now.add(const Duration(seconds: 5));
 
     final dueStyle = style ?? ReminderStyle.notification;
     final dueId = _dueId(task.id);
@@ -192,6 +267,8 @@ class NotificationService {
         }
       }
     }
+
+    if (persist) await _saveAlarmInfos();
   }
 
   static Future<void> cancelForTask(String taskId) async {
@@ -208,6 +285,7 @@ class NotificationService {
       await _fln.cancel(id: _dueId(taskId));
       await _fln.cancel(id: _reminderId(taskId));
     }
+    await _saveAlarmInfos();
   }
 
   static Future<void> snooze({
@@ -227,6 +305,7 @@ class NotificationService {
       at: fireAt,
       style: ReminderStyle.fullScreenAlarm,
     );
+    await _saveAlarmInfos();
   }
 
   static Future<void> rescheduleAll(List<Task> tasks) async {
@@ -234,9 +313,10 @@ class NotificationService {
     if (!Platform.isMacOS) return;
     for (final task in tasks) {
       if (!task.isCompleted && task.dueDate != null) {
-        await scheduleForTask(task, style: _styleForPriority(task.priority));
+        await scheduleForTask(task, style: _styleForPriority(task.priority), persist: false);
       }
     }
+    await _saveAlarmInfos();
   }
 
   static ReminderStyle _styleForPriority(TaskPriority priority) {
@@ -314,7 +394,7 @@ class NotificationService {
           loopAudio: true,
           vibrate: true,
           warningNotificationOnKill: Platform.isIOS,
-          androidFullScreenIntent: false,
+          androidFullScreenIntent: style == ReminderStyle.fullScreenAlarm,
           androidStopAlarmOnTermination: false,
           volumeSettings: const VolumeSettings.fixed(volume: 1.0),
           notificationSettings: NotificationSettings(

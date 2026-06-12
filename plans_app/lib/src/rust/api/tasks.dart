@@ -42,3 +42,8 @@ Future<void> clearCompleted() =>
 
 Future<void> restoreTask({required String id}) =>
     RustLib.instance.api.crateApiTasksRestoreTask(id: id);
+
+/// Last-write-wins upsert by updated_at. Used when merging local data after
+/// installing a remote snapshot — preserves whichever version is newer.
+Future<void> upsertTask({required String taskJson}) =>
+    RustLib.instance.api.crateApiTasksUpsertTask(taskJson: taskJson);

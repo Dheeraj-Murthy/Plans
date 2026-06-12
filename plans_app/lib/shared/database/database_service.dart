@@ -14,12 +14,15 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 });
 
 class DatabaseService {
+  // Task IDs soft-deleted this session; cleared after a successful sync merge.
+  static final pendingLocalDeletions = <String>{};
+
   Future<List<Task>> getTasks() async {
     try {
       final raw = await rust_tasks.getAllTasks();
       return raw.map(_rustTaskToDomain).toList();
-    } catch (e) {
-      debugPrint('DatabaseService.getTasks failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.getTasks failed: $e\n$st');
       return [];
     }
   }
@@ -44,8 +47,8 @@ class DatabaseService {
         recurrence: recurrence,
       );
       return _rustTaskToDomain(raw);
-    } catch (e) {
-      debugPrint('DatabaseService.insertTask failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.insertTask failed: $e\n$st');
       rethrow;
     }
   }
@@ -67,8 +70,8 @@ class DatabaseService {
         'recurrence': task.recurrence,
       });
       await rust_tasks.updateTask(taskJson: json);
-    } catch (e) {
-      debugPrint('DatabaseService.updateTask failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.updateTask failed: $e\n$st');
       rethrow;
     }
   }
@@ -76,8 +79,8 @@ class DatabaseService {
   Future<void> reorderTasks(List<String> orderedIds) async {
     try {
       await rust_tasks.reorderTasks(taskIds: orderedIds);
-    } catch (e) {
-      debugPrint('DatabaseService.reorderTasks failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.reorderTasks failed: $e\n$st');
       rethrow;
     }
   }
@@ -85,8 +88,9 @@ class DatabaseService {
   Future<void> deleteTask(String id) async {
     try {
       await rust_tasks.deleteTask(id: id);
-    } catch (e) {
-      debugPrint('DatabaseService.deleteTask failed: $e');
+      pendingLocalDeletions.add(id);
+    } catch (e, st) {
+      debugPrint('DatabaseService.deleteTask failed: $e\n$st');
       rethrow;
     }
   }
@@ -94,8 +98,9 @@ class DatabaseService {
   Future<void> restoreTask(String id) async {
     try {
       await rust_tasks.restoreTask(id: id);
-    } catch (e) {
-      debugPrint('DatabaseService.restoreTask failed: $e');
+      pendingLocalDeletions.remove(id);
+    } catch (e, st) {
+      debugPrint('DatabaseService.restoreTask failed: $e\n$st');
       rethrow;
     }
   }
@@ -103,8 +108,45 @@ class DatabaseService {
   Future<void> clearCompleted() async {
     try {
       await rust_tasks.clearCompleted();
-    } catch (e) {
-      debugPrint('DatabaseService.clearCompleted failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.clearCompleted failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> upsertTask(Task task) async {
+    try {
+      final json = jsonEncode({
+        'id': task.id,
+        'title': task.title,
+        'description': task.description,
+        'due_date': task.dueDate?.millisecondsSinceEpoch,
+        'priority': task.priority.index,
+        'is_completed': task.isCompleted,
+        'project_id': task.projectId,
+        'created_at': task.createdAt.millisecondsSinceEpoch,
+        'updated_at': task.updatedAt.millisecondsSinceEpoch,
+        'sort_order': task.sortOrder,
+        'reminder_minutes': task.reminderMinutes,
+        'recurrence': task.recurrence,
+      });
+      await rust_tasks.upsertTask(taskJson: json);
+    } catch (e, st) {
+      debugPrint('DatabaseService.upsertTask failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> upsertProject(Project project) async {
+    try {
+      final json = jsonEncode({
+        'id': project.id,
+        'name': project.name,
+        'color_index': project.colorIndex,
+      });
+      await rust_projects.upsertProject(projectJson: json);
+    } catch (e, st) {
+      debugPrint('DatabaseService.upsertProject failed: $e\n$st');
       rethrow;
     }
   }
@@ -118,8 +160,8 @@ class DatabaseService {
     try {
       final raw = await rust_projects.getAllProjects();
       return raw.map(_rustProjectToDomain).toList();
-    } catch (e) {
-      debugPrint('DatabaseService.getProjects failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.getProjects failed: $e\n$st');
       return [];
     }
   }
@@ -134,8 +176,8 @@ class DatabaseService {
         colorIndex: colorIndex,
       );
       return _rustProjectToDomain(raw);
-    } catch (e) {
-      debugPrint('DatabaseService.insertProject failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.insertProject failed: $e\n$st');
       rethrow;
     }
   }
@@ -147,8 +189,8 @@ class DatabaseService {
         name: project.name,
         colorIndex: project.colorIndex,
       );
-    } catch (e) {
-      debugPrint('DatabaseService.updateProject failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.updateProject failed: $e\n$st');
       rethrow;
     }
   }
@@ -156,8 +198,8 @@ class DatabaseService {
   Future<void> deleteProject(String id) async {
     try {
       await rust_projects.deleteProject(id: id);
-    } catch (e) {
-      debugPrint('DatabaseService.deleteProject failed: $e');
+    } catch (e, st) {
+      debugPrint('DatabaseService.deleteProject failed: $e\n$st');
       rethrow;
     }
   }

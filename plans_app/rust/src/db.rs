@@ -1,19 +1,23 @@
 use rusqlite::Connection;
 use std::sync::{LazyLock, Mutex};
+use crate::error::AppError;
 
 pub(crate) static DB: LazyLock<Mutex<Option<Connection>>> = LazyLock::new(|| Mutex::new(None));
 
 pub fn init_db(path: &str) -> Result<(), String> {
-    let conn = Connection::open(path).map_err(|e| e.to_string())?;
-    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
-        .map_err(|e| e.to_string())?;
+    _init_db(path).map_err(|e| e.to_string())
+}
+
+fn _init_db(path: &str) -> Result<(), AppError> {
+    let conn = Connection::open(path)?;
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")?;
     run_migrations(&conn)?;
-    let mut db = DB.lock().map_err(|e| e.to_string())?;
+    let mut db = DB.lock().map_err(|e| AppError::Lock(e.to_string()))?;
     *db = Some(conn);
     Ok(())
 }
 
-fn run_migrations(conn: &Connection) -> Result<(), String> {
+fn run_migrations(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS tasks (
             id TEXT PRIMARY KEY,
@@ -43,15 +47,16 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
             payload TEXT,
             timestamp INTEGER NOT NULL
         );",
-    )
-    .map_err(|e| e.to_string())?;
+    )?;
 
+    // Idempotent column additions — "duplicate column" errors expected on existing DBs.
     conn.execute_batch("ALTER TABLE tasks ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;")
         .ok();
     conn.execute_batch("ALTER TABLE tasks ADD COLUMN reminder_minutes INTEGER;")
         .ok();
     conn.execute_batch("ALTER TABLE tasks ADD COLUMN recurrence TEXT;")
         .ok();
+    // IF NOT EXISTS / INSERT OR IGNORE — safe to discard result.
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS sync_state (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -66,12 +71,10 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
         "INSERT OR IGNORE INTO sync_state (id, snapshot_version) VALUES (1, 0);"
     ).ok();
 
-
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM projects WHERE is_deleted = 0", [], |r| {
             r.get(0)
-        })
-        .map_err(|e| e.to_string())?;
+        })?;
     if count == 0 {
         conn.execute(
             "INSERT INTO projects (id, name, color_index, is_deleted) VALUES (?1, ?2, ?3, 0)",
@@ -99,9 +102,9 @@ fn run_migrations(conn: &Connection) -> Result<(), String> {
 
 pub fn with_db<F, T>(f: F) -> Result<T, String>
 where
-    F: FnOnce(&Connection) -> Result<T, String>,
+    F: FnOnce(&Connection) -> Result<T, AppError>,
 {
-    let guard = DB.lock().map_err(|e| e.to_string())?;
-    let conn = guard.as_ref().ok_or("DB not initialized")?;
-    f(conn)
+    let guard = DB.lock().map_err(|e| AppError::Lock(e.to_string()).to_string())?;
+    let conn = guard.as_ref().ok_or_else(|| AppError::NotInitialized.to_string())?;
+    f(conn).map_err(|e| e.to_string())
 }

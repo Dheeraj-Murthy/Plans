@@ -91,7 +91,40 @@ class FakeDatabaseService extends DatabaseService {
   }
 
   @override
+  Future<void> reorderTasks(List<String> orderedIds) async {
+    for (var i = 0; i < orderedIds.length; i++) {
+      final idx = _tasks.indexWhere((t) => t.id == orderedIds[i]);
+      if (idx >= 0) _tasks[idx] = _tasks[idx].copyWith(sortOrder: i);
+    }
+  }
+
+  @override
+  Future<void> restart() async {}
+
+  @override
   Future<void> deleteProject(String id) async {
     _projects.removeWhere((p) => p.id == id);
+  }
+
+  @override
+  Future<void> upsertTask(Task task) async {
+    final idx = _tasks.indexWhere((t) => t.id == task.id);
+    if (idx >= 0) {
+      if (task.updatedAt.isAfter(_tasks[idx].updatedAt)) {
+        _tasks[idx] = task;
+      }
+    } else {
+      _tasks.add(task);
+    }
+  }
+
+  @override
+  Future<void> upsertProject(Project project) async {
+    final idx = _projects.indexWhere((p) => p.id == project.id);
+    if (idx >= 0) {
+      _projects[idx] = project;
+    } else {
+      _projects.add(project);
+    }
   }
 }

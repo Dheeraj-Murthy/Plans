@@ -282,7 +282,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
 
   static const _reminderNone = -1;
 
-  void _showReminderMenu() async {
+  Future<void> _showReminderMenu() async {
     final options = [_reminderNone, 0, 5, 15, 30, 60];
     final labels = ['None', 'At due time', '5 min before', '15 min before', '30 min before', '1 hr before'];
     final renderBox = _reminderKey.currentContext?.findRenderObject() as RenderBox?;
@@ -323,12 +323,12 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     }
   }
 
-  void _showPriorityMenu() async {
+  Future<void> _showPriorityMenu() async {
     final picked = await showPriorityMenu(context, _priorityKey);
     if (picked != null) setState(() => _priority = picked);
   }
 
-  void _showProjectMenu() async {
+  Future<void> _showProjectMenu() async {
     final projects = ref.read(projectsProvider);
     if (projects.isEmpty) return;
     final picked = await showProjectMenu(context, _projectKey, ref);
@@ -343,7 +343,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     if (date != null) setState(() => _dueDate = date);
   }
 
-  void _showRecurrenceMenu() async {
+  Future<void> _showRecurrenceMenu() async {
     final result = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(300, 300, 300, 300),
