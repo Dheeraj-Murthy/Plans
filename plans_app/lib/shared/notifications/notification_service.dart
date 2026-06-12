@@ -100,11 +100,14 @@ class NotificationService {
         android: AndroidInitializationSettings('@drawable/ic_stat_notification'),
       );
       await _fln.initialize(settings: settings);
+      _initialized = true;
+      // Request notification permission (Android 13+: shows dialog; < 13: no-op).
+      // Don't gate _initialized on the result — alarm package schedules regardless;
+      // the OS will suppress visible notifications if permission is denied.
       final androidPlugin = _fln
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>();
       final granted = await androidPlugin?.requestNotificationsPermission();
-      _initialized = granted != false;
       debugPrint(
         'NotificationService: Android permission granted=$granted initialized=$_initialized',
       );
