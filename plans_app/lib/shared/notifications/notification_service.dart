@@ -71,7 +71,7 @@ class NotificationService {
 
     const settings = InitializationSettings(
       macOS: DarwinInitializationSettings(
-        requestAlertPermission: false,
+        requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
       ),
@@ -80,6 +80,15 @@ class NotificationService {
       settings: settings,
       onDidReceiveNotificationResponse: _onResponse,
     );
+
+    await _fln
+        .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin>()
+        ?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
 
     final permStatus = await _fln
         .resolvePlatformSpecificImplementation<
@@ -223,14 +232,8 @@ class NotificationService {
       'NotificationService: scheduleForTask "${task.title}" due=$dueTime secondsPast=$secondsPast',
     );
 
-    if (secondsPast >= 60) {
-      // Non-P1 tasks: don't reschedule once overdue.
-      if (task.priority != TaskPriority.high) {
-        await cancelForTask(task.id);
-        return;
-      }
-      // P1 tasks: only schedule if no alarm is already pending — don't
-      // reset the fire time on every app launch (alarm would never fire).
+    if (secondsPast >= 60 && task.priority == TaskPriority.high) {
+      // Don't reset an already-pending alarm on every app launch.
       if (_alarmInfos.containsKey(_dueId(task.id))) return;
     }
 
@@ -374,6 +377,7 @@ class NotificationService {
           ),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
       );
       debugPrint('NotificationService: macOS scheduled id=$id "$title" at $tzAt');
     } catch (e, st) {
