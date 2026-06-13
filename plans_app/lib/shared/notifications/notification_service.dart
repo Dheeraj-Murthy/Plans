@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:alarm/alarm.dart';
@@ -43,6 +44,7 @@ class NotificationService {
   static GlobalKey<NavigatorState>? navigatorKey;
   static final Map<int, _AlarmInfo> _alarmInfos = {};
   static int? _currentFullScreenAlarmId;
+  static Timer? _saveDebounce;
 
   static Future<void> init() async {
     if (kIsWeb || _initialized) return;
@@ -208,6 +210,13 @@ class NotificationService {
     }
   }
 
+  static void _scheduleSaveAlarmInfos() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(_saveAlarmInfos());
+    });
+  }
+
   static Future<void> _saveAlarmInfos() async {
     if (kIsWeb || Platform.isMacOS) return;
     try {
@@ -215,7 +224,7 @@ class NotificationService {
       final raw = <String, dynamic>{
         for (final e in _alarmInfos.entries) '${e.key}': e.value.toJson(),
       };
-      file.writeAsStringSync(jsonEncode(raw));
+      await file.writeAsString(jsonEncode(raw));
     } catch (e, st) {
       debugPrint('NotificationService._saveAlarmInfos failed: $e\n$st');
     }
@@ -331,7 +340,7 @@ class NotificationService {
       }
     }
 
-    if (persist) await _saveAlarmInfos();
+    if (persist) _scheduleSaveAlarmInfos();
   }
 
   static Future<void> cancelForTask(String taskId) async {
@@ -348,7 +357,7 @@ class NotificationService {
       await _fln.cancel(id: _dueId(taskId));
       await _fln.cancel(id: _reminderId(taskId));
     }
-    await _saveAlarmInfos();
+    _scheduleSaveAlarmInfos();
   }
 
   static Future<void> snooze({
@@ -368,7 +377,7 @@ class NotificationService {
       at: fireAt,
       style: ReminderStyle.fullScreenAlarm,
     );
-    await _saveAlarmInfos();
+    _scheduleSaveAlarmInfos();
   }
 
   static Future<void> rescheduleAll(List<Task> tasks) async {
@@ -379,7 +388,7 @@ class NotificationService {
         await scheduleForTask(task, style: _styleForPriority(task.priority), persist: false);
       }
     }
-    await _saveAlarmInfos();
+    _scheduleSaveAlarmInfos();
   }
 
   static ReminderStyle _styleForPriority(TaskPriority priority) {

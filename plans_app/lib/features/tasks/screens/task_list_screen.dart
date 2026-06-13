@@ -388,7 +388,7 @@ class _ExitAnimationState extends State<_ExitAnimation>
   }
 
   void _scheduleExit() {
-    Future.delayed(const Duration(milliseconds: 4700), () {
+    Future.delayed(const Duration(milliseconds: 600), () {
       if (mounted) _controller.forward();
     });
   }

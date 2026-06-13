@@ -281,14 +281,14 @@ class TasksNotifier extends Notifier<List<Task>> {
     unawaited(_db.updateTask(toggled));
     ref.read(syncServiceProvider.notifier).markDirty();
     if (toggled.isCompleted) {
-      NotificationService.cancelForTask(id);
+      unawaited(NotificationService.cancelForTask(id));
     } else {
-      NotificationService.scheduleForTask(
+      unawaited(NotificationService.scheduleForTask(
         toggled,
         style: toggled.priority == TaskPriority.critical
             ? ReminderStyle.fullScreenAlarm
             : ReminderStyle.notification,
-      );
+      ));
     }
 
     if (!wasCompleted) {
@@ -320,7 +320,7 @@ class TasksNotifier extends Notifier<List<Task>> {
       final selection = ref.read(sidebarSelectionProvider);
       final isInbox = selection is ViewSelection && selection.view == ViewType.inbox;
       if (isInbox) {
-        ref.read(completingTaskIdsProvider.notifier).add(id, 5300);
+        ref.read(completingTaskIdsProvider.notifier).add(id, 1200);
       }
     } else {
       ref.read(completingTaskIdsProvider.notifier).remove(id);
@@ -362,12 +362,12 @@ class TasksNotifier extends Notifier<List<Task>> {
     state = newState;
     unawaited(_db.updateTask(updated));
     ref.read(syncServiceProvider.notifier).markDirty();
-    NotificationService.scheduleForTask(
+    unawaited(NotificationService.scheduleForTask(
       updated,
       style: updated.priority == TaskPriority.high
           ? ReminderStyle.fullScreenAlarm
           : ReminderStyle.notification,
-    );
+    ));
     _debouncedWidgetUpdate();
   }
 
