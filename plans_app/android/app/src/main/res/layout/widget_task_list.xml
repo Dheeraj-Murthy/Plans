@@ -9,7 +9,6 @@
     android:paddingHorizontal="16dp"
     android:paddingBottom="16dp">
 
-    <!-- Header row -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -17,11 +16,21 @@
         android:gravity="center_vertical"
         android:paddingBottom="8dp">
 
+        <ImageView
+            android:id="@+id/iv_header_dot"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="8dp"
+            android:src="@drawable/ic_widget_logo"
+            android:background="@drawable/widget_ripple"
+            android:scaleType="fitCenter" />
+
         <TextView
             android:id="@+id/tv_header_title"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:background="@drawable/widget_ripple"
             android:textColor="#7C6DF2"
             android:textSize="14sp"
             android:textStyle="bold"
@@ -32,285 +41,32 @@
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:gravity="center"
+            android:background="@drawable/widget_ripple"
             android:text="+"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Task items -->
     <LinearLayout
-        android:id="@+id/ll_item_1"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/widget_row_bg"
-        android:paddingVertical="4dp"
-        android:visibility="gone">
+        android:layout_height="1dp"
+        android:background="#2D3138"
+        android:layout_marginBottom="8dp"
+        android:orientation="horizontal" />
 
-        <ImageView
-            android:id="@+id/iv_check_1"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:scaleType="fitCenter" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_title_1"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#E0E0E0"
-                android:textSize="15sp"
-                android:maxLines="1" />
-
-            <TextView
-                android:id="@+id/tv_due_1"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="1dp"
-                android:textColor="#888888"
-                android:textSize="12sp"
-                android:visibility="gone" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/ll_item_2"
+    <ListView
+        android:id="@+id/task_list"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/widget_row_bg"
-        android:paddingVertical="4dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/iv_check_2"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:scaleType="fitCenter" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_title_2"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#E0E0E0"
-                android:textSize="15sp"
-                android:maxLines="1" />
-
-            <TextView
-                android:id="@+id/tv_due_2"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="1dp"
-                android:textColor="#888888"
-                android:textSize="12sp"
-                android:visibility="gone" />
-
-        </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/ll_item_3"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/widget_row_bg"
-        android:paddingVertical="4dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/iv_check_3"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:scaleType="fitCenter" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_title_3"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#E0E0E0"
-                android:textSize="15sp"
-                android:maxLines="1" />
-
-            <TextView
-                android:id="@+id/tv_due_3"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="1dp"
-                android:textColor="#888888"
-                android:textSize="12sp"
-                android:visibility="gone" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/ll_item_4"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/widget_row_bg"
-        android:paddingVertical="4dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/iv_check_4"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:scaleType="fitCenter" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_title_4"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#E0E0E0"
-                android:textSize="15sp"
-                android:maxLines="1" />
-
-            <TextView
-                android:id="@+id/tv_due_4"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="1dp"
-                android:textColor="#888888"
-                android:textSize="12sp"
-                android:visibility="gone" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/ll_item_5"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/widget_row_bg"
-        android:paddingVertical="4dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/iv_check_5"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:scaleType="fitCenter" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_title_5"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#E0E0E0"
-                android:textSize="15sp"
-                android:maxLines="1" />
-
-            <TextView
-                android:id="@+id/tv_due_5"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="1dp"
-                android:textColor="#888888"
-                android:textSize="12sp"
-                android:visibility="gone" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
-        android:id="@+id/ll_item_6"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@drawable/widget_row_bg"
-        android:paddingVertical="4dp"
-        android:visibility="gone">
-
-        <ImageView
-            android:id="@+id/iv_check_6"
-            android:layout_width="18dp"
-            android:layout_height="18dp"
-            android:scaleType="fitCenter" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="10dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tv_title_6"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textColor="#E0E0E0"
-                android:textSize="15sp"
-                android:maxLines="1" />
-
-            <TextView
-                android:id="@+id/tv_due_6"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingHorizontal="6dp"
-                android:paddingVertical="1dp"
-                android:textColor="#888888"
-                android:textSize="12sp"
-                android:visibility="gone" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <TextView
-        android:id="@+id/tv_more"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="#888888"
-        android:textSize="12sp"
-        android:visibility="gone" />
+        android:layout_height="match_parent"
+        android:divider="@drawable/widget_task_divider"
+        android:dividerHeight="0.5dp"
+        android:listSelector="@android:color/transparent" />
 
     <TextView
         android:id="@+id/tv_empty"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
         android:gravity="center"
         android:text="No tasks yet"
         android:textColor="#555555"

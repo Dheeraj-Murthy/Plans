@@ -30,6 +30,24 @@ class WidgetInteractionReceiver : BroadcastReceiver() {
                 val view = intent.getStringExtra("view") ?: return
                 PlansAppWidgetProvider.handleSetView(context, appWidgetId, view)
             }
+            "com.plansapp.action.WIDGET_CLICK" -> {
+                val clickType = intent.getStringExtra("click_type") ?: return
+                when (clickType) {
+                    "toggle" -> {
+                        val appWidgetId = intent.getIntExtra("appWidgetId", -1)
+                        val taskId = intent.getStringExtra("task_id") ?: return
+                        PlansAppWidgetProvider.handleToggle(context, appWidgetId, taskId)
+                    }
+                    "open" -> {
+                        val taskId = intent.getStringExtra("task_id") ?: return
+                        val launchIntent = Intent(context, com.plansapp.MainActivity::class.java)
+                        launchIntent.action = "es.antonborri.home_widget.action.LAUNCH"
+                        launchIntent.putExtra("task_id", taskId)
+                        launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        context.startActivity(launchIntent)
+                    }
+                }
+            }
         }
     }
 }

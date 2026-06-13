@@ -173,8 +173,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                         key: _projectKey,
                         icon: Icons.folder_outlined,
                         label: projects
-                            .firstWhere((p) => p.id == currentProjectId)
-                            .name,
+                            .where((p) => p.id == currentProjectId)
+                            .firstOrNull
+                            ?.name ?? 'Project',
                         onTap: _showProjectMenu,
                       ),
                     ],

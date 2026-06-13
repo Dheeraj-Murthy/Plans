@@ -6,7 +6,6 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.graphics.Paint
 import android.os.Build
 import android.os.SystemClock
 import android.os.VibrationEffect
@@ -114,6 +113,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
         private const val ACTION_TOGGLE = "com.plansapp.action.TOGGLE"
         private const val ACTION_SET_VIEW = "com.plansapp.action.SET_VIEW"
         private const val ACTION_REFRESH = "com.plansapp.action.REFRESH"
+        private const val ACTION_WIDGET_CLICK = "com.plansapp.action.WIDGET_CLICK"
         private const val EXTRA_TASK_ID = "task_id"
         private const val EXTRA_VIEW = "view"
         private const val EXTRA_APP_WIDGET_ID = "appWidgetId"
@@ -124,7 +124,6 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
         private const val VIEW_COMPLETED = "completed"
         private const val VIEW_PROJECT_PREFIX = "project:"
 
-        private const val MAX_VISIBLE_TASKS = 6
         private const val MAX_VISIBLE_OPTIONS = 6
 
         fun buildWidgetViews(
@@ -167,7 +166,6 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                 }
             }
             val taskCount = tasks.length()
-            val visibleCount = minOf(taskCount, MAX_VISIBLE_TASKS)
 
             val selectedName = getViewDisplayName(widgetData, view)
             val headerText = if (taskCount > 0) "$selectedName ($taskCount)" else selectedName
@@ -184,6 +182,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             views.setOnClickPendingIntent(R.id.tv_header_title, headerPi)
+            views.setOnClickPendingIntent(R.id.iv_header_dot, headerPi)
 
             val rootIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
                 action = "es.antonborri.home_widget.action.LAUNCH"
@@ -205,130 +204,28 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             views.setOnClickPendingIntent(R.id.btn_add, addPi)
             views.setContentDescription(R.id.btn_add, "Add task")
 
-            val isMultiProject = view == VIEW_TODAY || view == VIEW_COMPLETED
-            val now = System.currentTimeMillis()
-
             if (taskCount == 0) {
                 views.setViewVisibility(R.id.tv_empty, android.view.View.VISIBLE)
-                for (i in 0 until MAX_VISIBLE_TASKS) {
-                    val slotIdx = i + 1
-                    val itemId = context.resources.getIdentifier("ll_item_$slotIdx", "id", context.packageName)
-                    if (itemId != 0) views.setViewVisibility(itemId, android.view.View.GONE)
-                }
-                views.setViewVisibility(R.id.tv_more, android.view.View.GONE)
+                views.setViewVisibility(R.id.task_list, android.view.View.GONE)
                 return views
             }
             views.setViewVisibility(R.id.tv_empty, android.view.View.GONE)
+            views.setViewVisibility(R.id.task_list, android.view.View.VISIBLE)
 
-            for (i in 0 until MAX_VISIBLE_TASKS) {
-                val slotIdx = i + 1
-                val itemId = context.resources.getIdentifier("ll_item_$slotIdx", "id", context.packageName)
-                val checkId = context.resources.getIdentifier("iv_check_$slotIdx", "id", context.packageName)
-                val titleId = context.resources.getIdentifier("tv_title_$slotIdx", "id", context.packageName)
-                val dueId = context.resources.getIdentifier("tv_due_$slotIdx", "id", context.packageName)
-                if (itemId == 0 || checkId == 0 || titleId == 0) {
-                    Log.w(TAG, "Resource ID not found for slot $slotIdx")
-                    continue
-                }
-
-                if (i < visibleCount) {
-                    val taskObj = tasks.optJSONObject(i) ?: continue
-                    val taskId = taskObj.getString("id")
-                    val title = taskObj.getString("title")
-                    val isCompleted = taskObj.optBoolean("is_completed", false)
-                    val priority = taskObj.optInt("priority", 1)
-                    val dueDate = if (taskObj.has("due_date") && !taskObj.isNull("due_date")) {
-                        taskObj.optLong("due_date", -1)
-                    } else -1L
-
-                    views.setViewVisibility(itemId, android.view.View.VISIBLE)
-
-                    val checkRes = if (isCompleted) R.drawable.widget_checkbox_checked
-                    else when (priority) {
-                        3 -> R.drawable.widget_checkbox_border_red
-                        2 -> R.drawable.widget_checkbox_border_yellow
-                        else -> R.drawable.widget_checkbox_border_gray
-                    }
-                    views.setImageViewResource(checkId, checkRes)
-                    views.setContentDescription(checkId, "${if (isCompleted) "Completed" else "Incomplete"}, $title")
-
-                    val toggleIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
-                        action = ACTION_TOGGLE
-                        putExtra(EXTRA_TASK_ID, taskId)
-                        putExtra(EXTRA_APP_WIDGET_ID, widgetId)
-                    }
-                    val togglePi = PendingIntent.getBroadcast(
-                        context, taskId.hashCode() + widgetId, toggleIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                    )
-                    views.setOnClickPendingIntent(checkId, togglePi)
-                    views.setOnClickPendingIntent(itemId, togglePi)
-
-                    views.setTextViewText(titleId, title)
-                    if (isCompleted) {
-                        views.setInt(titleId, "setPaintFlags", Paint.STRIKE_THRU_TEXT_FLAG)
-                    } else {
-                        views.setInt(titleId, "setPaintFlags", 0)
-                    }
-                    views.setContentDescription(titleId, "$title, tap to open")
-
-                    val titleIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
-                        action = "es.antonborri.home_widget.action.LAUNCH"
-                        putExtra("task_id", taskId)
-                        putExtra("current_view", view)
-                    }
-                    val titlePi = PendingIntent.getActivity(
-                        context, widgetId * 100 + 2 + i, titleIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                    )
-                    views.setOnClickPendingIntent(titleId, titlePi)
-
-                    if (dueDate > 0) {
-                        val dateLabel = formatDueDate(dueDate)
-                        val timeStr = if (_hasTime(dueDate)) formatTime(dueDate) else null
-                        val dueText = if (timeStr != null) "$dateLabel $timeStr" else dateLabel
-                        val projectInfo = if (isMultiProject) lookupProjectInfo(widgetData, taskObj.optString("project_id", "")) else null
-                        val displayText = if (projectInfo != null) "$dueText · ${projectInfo.name}" else dueText
-                        views.setTextViewText(dueId, displayText)
-                        views.setViewVisibility(dueId, android.view.View.VISIBLE)
-                        views.setInt(dueId, "setBackgroundResource", R.drawable.widget_pill_bg)
-                        val isOverdue = dueDate < now && !isCompleted && view != VIEW_COMPLETED
-                        if (isOverdue) {
-                            views.setTextColor(dueId, OVERDUE_COLOR)
-                        } else if (projectInfo != null) {
-                            views.setTextColor(dueId, colorForProjectIndex(projectInfo.colorIndex))
-                        } else {
-                            views.setTextColor(dueId, 0xFF888888.toInt())
-                        }
-                        views.setContentDescription(dueId, "Due $dueText${if (projectInfo != null) ", ${projectInfo.name}" else ""}")
-                    } else if (isMultiProject) {
-                        val projectInfo = lookupProjectInfo(widgetData, taskObj.optString("project_id", ""))
-                        if (projectInfo != null) {
-                            views.setTextViewText(dueId, projectInfo.name)
-                            views.setTextColor(dueId, colorForProjectIndex(projectInfo.colorIndex))
-                            views.setViewVisibility(dueId, android.view.View.VISIBLE)
-                            views.setInt(dueId, "setBackgroundResource", R.drawable.widget_pill_bg)
-                            views.setContentDescription(dueId, projectInfo.name)
-                        } else {
-                            views.setViewVisibility(dueId, android.view.View.GONE)
-                        }
-                    } else {
-                        views.setViewVisibility(dueId, android.view.View.GONE)
-                    }
-                } else {
-                    views.setViewVisibility(itemId, android.view.View.GONE)
-                }
+            val serviceIntent = Intent(context, TaskRemoteViewsService::class.java).apply {
+                putExtra(EXTRA_VIEW, view)
             }
 
-            val moreCount = taskCount - MAX_VISIBLE_TASKS
-            if (moreCount > 0) {
-                val moreText = "and $moreCount more..."
-                views.setTextViewText(R.id.tv_more, moreText)
-                views.setViewVisibility(R.id.tv_more, android.view.View.VISIBLE)
-                views.setContentDescription(R.id.tv_more, "$moreCount more tasks")
-            } else {
-                views.setViewVisibility(R.id.tv_more, android.view.View.GONE)
+            val templateIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
+                action = ACTION_WIDGET_CLICK
             }
+            val templatePi = PendingIntent.getBroadcast(
+                context, widgetId + 1000, templateIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+            views.setRemoteAdapter(R.id.task_list, serviceIntent)
+            views.setPendingIntentTemplate(R.id.task_list, templatePi)
 
             return views
         }
@@ -422,7 +319,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
         private data class ProjectInfo(val name: String, val colorIndex: Int)
 
         private fun lookupProjectInfo(widgetData: SharedPreferences, projectId: String): ProjectInfo? {
-            if (projectId == "default") return null
+            if (projectId == "default" || projectId.isEmpty()) return ProjectInfo("Inbox", 0)
             val projectsJson = widgetData.getString("widget_projects", "[]") ?: "[]"
             val projects = JSONArray(projectsJson)
             for (i in 0 until projects.length()) {
@@ -521,8 +418,6 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                 Log.e(TAG, "handleToggle failed", e)
             }
 
-            WidgetDbHelper.getInstance(context).toggleTask(taskId)
-
             try {
                 val togglePrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val existing = togglePrefs.getString("pending_toggle_ids", "[]") ?: "[]"
@@ -569,18 +464,18 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val db = WidgetDbHelper.getInstance(context)
 
+                val allProjects = db.getProjects()
+                prefs.edit().putString("widget_projects", JSONArray(allProjects.map { p ->
+                    JSONObject().apply {
+                        put("id", p.id)
+                        put("name", p.name)
+                        put("color_index", p.colorIndex)
+                    }
+                }).toString()).apply()
+
                 for (widgetId in appWidgetIds) {
                     val view = prefs.getString("widget_view_$widgetId", VIEW_INBOX) ?: VIEW_INBOX
-                    if (view == VIEW_PICKER) {
-                        val projects = db.getProjects()
-                        prefs.edit().putString("widget_projects", JSONArray(projects.map { p ->
-                            JSONObject().apply {
-                                put("id", p.id)
-                                put("name", p.name)
-                                put("color_index", p.colorIndex)
-                            }
-                        }).toString()).apply()
-                    } else {
+                    if (view != VIEW_PICKER) {
                         val tasks = db.getTasks(view)
                         prefs.edit().putString("widget_tasks_$view", JSONArray(tasks.map { t ->
                             JSONObject().apply {

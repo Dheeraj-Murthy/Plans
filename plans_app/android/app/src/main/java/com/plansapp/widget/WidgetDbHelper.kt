@@ -58,7 +58,7 @@ class WidgetDbHelper private constructor(context: Context) {
         val db = getReadDb()
         val (query, args) = when {
             view == "inbox" ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE project_id = 'default' AND is_deleted = 0 AND is_completed = 0 ORDER BY sort_order" to emptyArray()
+                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE is_deleted = 0 AND is_completed = 0 AND (project_id = 'default' OR due_date IS NOT NULL) ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to emptyArray()
             view == "today" -> {
                 val now = Calendar.getInstance()
                 now.set(Calendar.HOUR_OF_DAY, 0)
@@ -73,9 +73,9 @@ class WidgetDbHelper private constructor(context: Context) {
             view == "completed" ->
                 "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE is_deleted = 0 AND is_completed = 1 ORDER BY updated_at DESC LIMIT 50" to emptyArray()
             view.startsWith("project:") ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE project_id = ? AND is_deleted = 0 AND is_completed = 0 ORDER BY sort_order" to arrayOf(view.removePrefix("project:"))
+                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE project_id = ? AND is_deleted = 0 AND is_completed = 0 ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to arrayOf(view.removePrefix("project:"))
             else ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE project_id = 'default' AND is_deleted = 0 AND is_completed = 0 ORDER BY sort_order" to emptyArray()
+                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE is_deleted = 0 AND is_completed = 0 AND (project_id = 'default' OR due_date IS NOT NULL) ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to emptyArray()
         }
         val cursor = db.rawQuery(query, args)
         val tasks = mutableListOf<WidgetTask>()

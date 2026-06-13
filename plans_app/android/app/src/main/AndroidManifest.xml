@@ -55,6 +55,7 @@
             <intent-filter>
                 <action android:name="com.plansapp.action.TOGGLE" />
                 <action android:name="com.plansapp.action.SET_VIEW" />
+                <action android:name="com.plansapp.action.WIDGET_CLICK" />
             </intent-filter>
         </receiver>
         <receiver
@@ -64,6 +65,10 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+        <service
+            android:name=".widget.TaskRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />

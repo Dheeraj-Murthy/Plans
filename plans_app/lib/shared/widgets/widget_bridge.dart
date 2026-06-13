@@ -41,8 +41,11 @@ class WidgetBridge {
     final todayStart = DateTime(now.year, now.month, now.day);
     final todayEnd = todayStart.add(const Duration(days: 1));
 
-    final inboxTasks =
-        allTasks.where((t) => t.projectId == 'default' && !t.isCompleted).toList();
+    final inboxTasks = allTasks
+        .where((t) =>
+            !t.isCompleted &&
+            (t.projectId == 'default' || t.dueDate != null))
+        .toList();
     final todayTasks = allTasks
         .where((t) =>
             t.dueDate != null &&

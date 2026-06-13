@@ -83,7 +83,9 @@ class _PlatformAdaptiveShellState
       const channel = MethodChannel('plans/widget/deeplink');
       final pendingIds = (await channel.invokeMethod<List<dynamic>>('checkPendingWidgetSync')) ?? [];
       if (pendingIds.isNotEmpty) {
-        ref.invalidate(tasksProvider);
+        for (final id in pendingIds) {
+          ref.read(tasksProvider.notifier).toggleTask(id as String);
+        }
         ref.read(syncServiceProvider.notifier).markDirty();
         ref.invalidate(projectsProvider);
       }
