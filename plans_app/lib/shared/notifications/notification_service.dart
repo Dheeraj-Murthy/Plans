@@ -104,11 +104,24 @@ class NotificationService {
     await Alarm.init();
     debugPrint('NotificationService: Alarm.init() done');
 
+    // Initialize timezone data for Android notification scheduling.
+    if (!Platform.isIOS) {
+      try {
+        tz.initializeTimeZones();
+        final localTz = (await FlutterTimezone.getLocalTimezone()).identifier;
+        try {
+          tz.setLocalLocation(tz.getLocation(localTz));
+        } catch (_) {
+          tz.setLocalLocation(tz.UTC);
+        }
+      } catch (_) {}
+    }
+
     // Initialize flutter_local_notifications on both platforms.
     // Permission requests happen later in requestMobilePermissions()
     // after the Activity is guaranteed attached (post-runApp).
     const settings = InitializationSettings(
-      android: AndroidInitializationSettings('@drawable/ic_stat_notification'),
+      android: AndroidInitializationSettings('ic_stat_notification'),
       iOS: DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
@@ -117,6 +130,24 @@ class NotificationService {
     );
     await _fln.initialize(settings: settings);
     _initialized = true;
+
+    // Pre-create a high-importance channel for Android notifications.
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        final androidPlugin = _fln.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        await androidPlugin?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'plans_notifications',
+            'Plans reminders',
+            description: 'Task due reminders',
+            importance: Importance.high,
+            playSound: true,
+            enableVibration: true,
+          ),
+        );
+      } catch (_) {}
+    }
 
     // Restore persisted alarm metadata so full-screen alarms survive app restart.
     await _loadAlarmInfos();
@@ -374,6 +405,15 @@ class NotificationService {
         at: at,
         style: style,
       );
+      // Also schedule via flutter_local_notifications to ensure the
+      // notification appears even if the alarm service fails to start
+      // its foreground notification (e.g. Android 12+ restrictions).
+      await _scheduleAndroidNotification(
+        id: id,
+        title: title,
+        body: body,
+        at: at,
+      );
     }
   }
 
@@ -437,6 +477,50 @@ class NotificationService {
       debugPrint('NotificationService: alarm set id=$id "$title" at $at');
     } catch (e, st) {
       debugPrint('NotificationService._scheduleAlarm failed: $e\n$st');
+    }
+  }
+
+  /// Schedules a notification via flutter_local_notifications on Android.
+  ///
+  /// This is a reliability layer — if the alarm plugin's foreground service
+  /// notification is suppressed (e.g. Android 12+ restrictions), this ensures
+  /// the user still gets a visible notification in the tray.
+  static Future<void> _scheduleAndroidNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime at,
+  }) async {
+    if (kIsWeb || Platform.isIOS || Platform.isMacOS) return;
+    try {
+      final tzAt = tz.TZDateTime.from(at, tz.local);
+      await _fln.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: tzAt,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            'plans_notifications',
+            'Plans reminders',
+            channelDescription: 'Task due reminders',
+            importance: Importance.high,
+            priority: Priority.high,
+            icon: 'ic_stat_notification',
+            playSound: true,
+            enableVibration: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+      debugPrint('NotificationService: fln scheduled id=$id "$title" at $tzAt');
+    } catch (e, st) {
+      debugPrint('NotificationService._scheduleAndroidNotification failed: $e\n$st');
     }
   }
 }
