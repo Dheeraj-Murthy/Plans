@@ -66,6 +66,8 @@ class _TaskListBody extends ConsumerWidget {
     final filtered = ref.watch(filteredTasksProvider);
     final completingIds = ref.watch(completingTaskIdsProvider);
     final uncompletingIds = ref.watch(uncompletingTaskIdsProvider);
+    final selection = ref.watch(sidebarSelectionProvider);
+    final isCompletedView = selection is ViewSelection && selection.view == ViewType.completed;
     final projMap = _projectMap(ref);
 
     if (filtered.isEmpty) {
@@ -141,6 +143,28 @@ class _TaskListBody extends ConsumerWidget {
               ),
             if (completed.isNotEmpty && incomplete.isNotEmpty)
               _SectionDivider(count: completed.length),
+            if (completed.isNotEmpty && isCompletedView)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      ref.read(tasksProvider.notifier).clearCompleted();
+                    },
+                    icon: const Icon(Icons.clear_all_rounded, size: 16),
+                    label: const Text('Clear completed'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.textMuted,
+                      side: BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+              ),
             ...completed.asMap().entries.map(
               (e) => TaskTile(
                 key: ValueKey('completed-${e.value.id}'),

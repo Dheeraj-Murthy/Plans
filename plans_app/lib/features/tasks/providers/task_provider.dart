@@ -354,6 +354,18 @@ class TasksNotifier extends Notifier<List<Task>> {
     _debouncedWidgetUpdate();
   }
 
+  void clearCompleted() {
+    final completed = state.where((t) => t.isCompleted).toList();
+    if (completed.isEmpty) return;
+    for (final t in completed) {
+      unawaited(_db.deleteTask(t.id));
+      NotificationService.cancelForTask(t.id);
+    }
+    state = state.where((t) => !t.isCompleted).toList();
+    ref.read(syncServiceProvider.notifier).markDirty();
+    _debouncedWidgetUpdate();
+  }
+
   void updateTask(String id, Task updated) {
     final idx = state.indexWhere((t) => t.id == id);
     if (idx == -1) return;
