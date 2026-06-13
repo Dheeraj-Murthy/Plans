@@ -247,7 +247,9 @@ class NotificationService {
             .resolvePlatformSpecificImplementation<
                 AndroidFlutterLocalNotificationsPlugin>();
         final granted = await androidPlugin?.requestNotificationsPermission();
-        debugPrint('NotificationService: Android permission granted=$granted');
+        debugPrint('NotificationService: Android POST_NOTIFICATIONS granted=$granted');
+        final fsGranted = await androidPlugin?.requestFullScreenIntentPermission();
+        debugPrint('NotificationService: Android USE_FULL_SCREEN_INTENT granted=$fsGranted');
       } else {
         final iosPlugin = _fln
             .resolvePlatformSpecificImplementation<
