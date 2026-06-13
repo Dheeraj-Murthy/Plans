@@ -214,6 +214,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
 
             val serviceIntent = Intent(context, TaskRemoteViewsService::class.java).apply {
                 putExtra(EXTRA_VIEW, view)
+                putExtra(EXTRA_APP_WIDGET_ID, widgetId)
             }
 
             val templateIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
@@ -221,7 +222,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             }
             val templatePi = PendingIntent.getBroadcast(
                 context, widgetId + 1000, templateIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
             )
 
             views.setRemoteAdapter(R.id.task_list, serviceIntent)
@@ -398,6 +399,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             appWidgetId: Int,
             taskId: String,
         ) {
+            Log.d(TAG, "handleToggle appWidgetId=$appWidgetId taskId=$taskId")
             hapticFeedback(context)
             try {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -427,8 +429,9 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             } catch (_: Exception) {}
 
             try {
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val appWidgetManager = AppWidgetManager.getInstance(context)
+                appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.task_list)
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 val views = buildWidgetViews(context, prefs, appWidgetId)
                 appWidgetManager.updateAppWidget(appWidgetId, views)
             } catch (e: Exception) {

@@ -7,7 +7,6 @@ import '../providers/task_provider.dart';
 import '../widgets/task_tile.dart';
 import '../../projects/providers/project_provider.dart';
 import '../../../theme/app_spacing.dart';
-import '../../../theme/app_animations.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_typography.dart';
 import '../../../shared/widgets/sidebar/sticky_composer.dart';
@@ -64,8 +63,6 @@ class _TaskListBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final filtered = ref.watch(filteredTasksProvider);
-    final completingIds = ref.watch(completingTaskIdsProvider);
-    final uncompletingIds = ref.watch(uncompletingTaskIdsProvider);
     final selection = ref.watch(sidebarSelectionProvider);
     final isCompletedView = selection is ViewSelection && selection.view == ViewType.completed;
     final projMap = _projectMap(ref);
@@ -95,11 +92,7 @@ class _TaskListBody extends ConsumerWidget {
     final incomplete = <Task>[];
     final completed = <Task>[];
     for (final t in filtered) {
-      if (completingIds.contains(t.id)) {
-        incomplete.add(t);
-      } else if (uncompletingIds.contains(t.id)) {
-        completed.add(t);
-      } else if (t.isCompleted) {
+      if (t.isCompleted) {
         completed.add(t);
       } else {
         incomplete.add(t);
@@ -112,7 +105,7 @@ class _TaskListBody extends ConsumerWidget {
           maxWidth: AppSpacing.maxContentWidth,
         ),
         child: ListView(
-          padding: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.only(top: 4),
           children: [
             if (incomplete.isNotEmpty)
               ReorderableListView.builder(
@@ -127,17 +120,13 @@ class _TaskListBody extends ConsumerWidget {
                 },
                 itemBuilder: (context, index) {
                   final task = incomplete[index];
-                  final isCompleting = completingIds.contains(task.id);
-                  return _ExitAnimation(
+                  return TaskTile(
                     key: ValueKey(task.id),
-                    isCompleting: isCompleting,
-                    child: TaskTile(
-                      task: task,
-                      index: index,
-                      showTime: task.dueDate != null && _hasTime(task.dueDate!),
-                      projectName: projMap[task.projectId]?.name,
-                      projectColor: projMap[task.projectId]?.color,
-                    ),
+                    task: task,
+                    index: index,
+                    showTime: task.dueDate != null && _hasTime(task.dueDate!),
+                    projectName: projMap[task.projectId]?.name,
+                    projectColor: projMap[task.projectId]?.color,
                   );
                 },
               ),
@@ -377,72 +366,6 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-class _ExitAnimation extends StatefulWidget {
-  final bool isCompleting;
-  final Widget child;
-
-  const _ExitAnimation({
-    required this.isCompleting,
-    required this.child,
-    super.key,
-  });
-
-  @override
-  State<_ExitAnimation> createState() => _ExitAnimationState();
-}
-
-class _ExitAnimationState extends State<_ExitAnimation>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: AppAnimations.medium,
-    );
-    if (widget.isCompleting) _scheduleExit();
-  }
-
-  @override
-  void didUpdateWidget(_ExitAnimation old) {
-    super.didUpdateWidget(old);
-    if (!old.isCompleting && widget.isCompleting) _scheduleExit();
-  }
-
-  void _scheduleExit() {
-    Future.delayed(const Duration(milliseconds: 600), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final v = _controller.value;
-        if (v == 0) return child!;
-        return Opacity(
-          opacity: 1 - v,
-          child: Transform.scale(
-            scale: 1 - 0.15 * v,
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
-    );
-  }
-}
-
 class _SectionDivider extends StatelessWidget {
   final int count;
 
@@ -452,10 +375,10 @@ class _SectionDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
+        AppSpacing.md,
         AppSpacing.lg,
-        AppSpacing.xl,
-        AppSpacing.lg,
-        AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.xs,
       ),
       child: Row(
         children: [

@@ -37,10 +37,12 @@ class TaskRemoteViewsFactory(
     private var tasks = JSONArray()
 
     private val widgetId: Int
-        get() = intent.getIntExtra(
-            AppWidgetManager.EXTRA_APPWIDGET_ID,
-            AppWidgetManager.INVALID_APPWIDGET_ID,
-        )
+        get() = intent.getIntExtra(EXTRA_APP_WIDGET_ID, -1)
+            .takeIf { it != -1 }
+            ?: intent.getIntExtra(
+                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID,
+            )
 
     override fun onCreate() {}
 

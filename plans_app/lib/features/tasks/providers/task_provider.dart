@@ -53,42 +53,6 @@ class UndoStackNotifier extends Notifier<List<UndoAction>> {
   }
 }
 
-class _SetNotifier extends Notifier<Set<String>> {
-  final Map<String, Timer> _timers = {};
-
-  @override
-  Set<String> build() {
-    ref.onDispose(() {
-      for (final t in _timers.values) { t.cancel(); }
-      _timers.clear();
-    });
-    return {};
-  }
-
-  void add(String id, int delayMs) {
-    _timers[id]?.cancel();
-    state = {...state, id};
-    _timers[id] = Timer(Duration(milliseconds: delayMs), () {
-      state = Set<String>.from(state)..remove(id);
-      _timers.remove(id);
-    });
-  }
-
-  void remove(String id) {
-    _timers[id]?.cancel();
-    _timers.remove(id);
-    if (state.contains(id)) {
-      state = Set<String>.from(state)..remove(id);
-    }
-  }
-}
-
-final completingTaskIdsProvider =
-    NotifierProvider<_SetNotifier, Set<String>>(_SetNotifier.new);
-
-final uncompletingTaskIdsProvider =
-    NotifierProvider<_SetNotifier, Set<String>>(_SetNotifier.new);
-
 final tasksProvider =
     NotifierProvider<TasksNotifier, List<Task>>(TasksNotifier.new);
 
@@ -155,16 +119,10 @@ final filteredTasksProvider = Provider<List<Task>>((ref) {
   final tasks = ref.watch(tasksProvider);
   final SidebarSelection selection = ref.watch(sidebarSelectionProvider);
   final query = ref.watch(searchQueryProvider).toLowerCase().trim();
-  final completingIds = ref.watch(completingTaskIdsProvider);
-  final uncompletingIds = ref.watch(uncompletingTaskIdsProvider);
 
   var filtered = switch (selection) {
     ViewSelection(:final view) => switch (view) {
-        ViewType.inbox => tasks.where((t) {
-          if (!t.isCompleted) return true;
-          if (completingIds.contains(t.id)) return true;
-          return false;
-        }).toList(),
+        ViewType.inbox => tasks.where((t) => !t.isCompleted).toList(),
         ViewType.timeline => tasks.where((t) {
             if (t.isCompleted) return false;
             return t.dueDate != null;
@@ -178,11 +136,7 @@ final filteredTasksProvider = Provider<List<Task>>((ref) {
                 due.month == now.month &&
                 due.day == now.day;
           }).toList(),
-        ViewType.completed => tasks.where((t) {
-          if (t.isCompleted) return true;
-          if (uncompletingIds.contains(t.id)) return true;
-          return false;
-        }).toList(),
+        ViewType.completed => tasks.where((t) => t.isCompleted).toList(),
       },
     ProjectSelection(:final projectId) =>
       tasks.where((t) => t.projectId == projectId).toList(),
@@ -316,17 +270,7 @@ class TasksNotifier extends Notifier<List<Task>> {
           }));
         }
       }
-      ref.read(uncompletingTaskIdsProvider.notifier).remove(id);
-      final selection = ref.read(sidebarSelectionProvider);
-      final isInbox = selection is ViewSelection && selection.view == ViewType.inbox;
-      if (isInbox) {
-        ref.read(completingTaskIdsProvider.notifier).add(id, 1200);
-      }
-    } else {
-      ref.read(completingTaskIdsProvider.notifier).remove(id);
-      ref.read(uncompletingTaskIdsProvider.notifier).add(id, 300);
     }
-
     _debouncedWidgetUpdate();
     return wasCompleted;
   }

@@ -21,20 +21,27 @@ class AppCheckbox extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () => onChanged(!value),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: value ? _activeColor : Colors.transparent,
-          border: Border.all(
-            color: _activeColor.withValues(alpha: value ? 1 : 0.4),
-            width: 2,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: value ? _activeColor : Colors.transparent,
+              border: Border.all(
+                color: _activeColor.withValues(alpha: value ? 1 : 0.4),
+                width: 2,
+              ),
+            ),
+            child: value
+                ? Icon(Icons.check, size: size * 0.6, color: Colors.white)
+                : null,
           ),
         ),
-        child: value
-            ? Icon(Icons.check, size: size * 0.6, color: Colors.white)
-            : null,
       ),
     );
   }

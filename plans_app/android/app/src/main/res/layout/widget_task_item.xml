@@ -6,14 +6,14 @@
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:background="@drawable/widget_row_bg"
-    android:paddingVertical="8dp"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp">
+    android:paddingVertical="5dp"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp">
 
     <ImageView
         android:id="@+id/iv_check"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
         android:background="@drawable/widget_ripple"
         android:scaleType="fitCenter" />
 
@@ -21,7 +21,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginStart="10dp"
+        android:layout_marginStart="8dp"
         android:orientation="vertical">
 
         <TextView

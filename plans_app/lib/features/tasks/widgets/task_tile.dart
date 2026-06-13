@@ -35,6 +35,7 @@ class TaskTile extends ConsumerStatefulWidget {
 
 class _TaskTileState extends ConsumerState<TaskTile> {
   bool _isHovered = false;
+  bool _isPressed = false;
 
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -153,20 +154,31 @@ class _TaskTileState extends ConsumerState<TaskTile> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onDoubleTap: _openEditSheet,
-        child: AnimatedContainer(
-          duration: AppAnimations.normal,
-          curve: AppAnimations.easeOut,
-          decoration: BoxDecoration(
-            color: _isHovered ? AppColors.surface : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          padding: EdgeInsets.only(top: hasDescription ? 8 : 6, bottom: 6),
+      child: Listener(
+        onPointerDown: (_) => setState(() => _isPressed = true),
+        onPointerUp: (_) => Future.delayed(
+          const Duration(milliseconds: 200),
+          () {
+            if (mounted) setState(() => _isPressed = false);
+          },
+        ),
+        onPointerCancel: (_) => setState(() => _isPressed = false),
+        child: GestureDetector(
+          onDoubleTap: _openEditSheet,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
+              Container(
+              decoration: BoxDecoration(
+                color: _isPressed
+                    ? AppColors.elevated
+                    : _isHovered
+                        ? AppColors.surface
+                        : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              padding: EdgeInsets.only(top: hasDescription ? 4 : 2, bottom: 2),
+              child: Row(
                 crossAxisAlignment: hasDescription
                     ? CrossAxisAlignment.start
                     : CrossAxisAlignment.center,
@@ -242,7 +254,16 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                   const SizedBox(width: AppSpacing.md),
                                   Expanded(
                                     child: GestureDetector(
-                                      onTap: _openEditSheet,
+                                      onTap: () {
+                                        final wasCompleted = ref
+                                            .read(tasksProvider.notifier)
+                                            .toggleTask(widget.task.id);
+                                        if (!wasCompleted) {
+                                          final action = TaskToggled(widget.task.id, false);
+                                          ref.read(undoStackProvider.notifier).push(action);
+                                          ref.read(lastUndoActionProvider.notifier).set(action);
+                                        }
+                                      },
                                       child: AnimatedDefaultTextStyle(
                                         duration: AppAnimations.medium,
                                         curve: AppAnimations.easeOut,
@@ -430,8 +451,14 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                   const SizedBox(width: AppSpacing.sm),
                 ],
               ),
-            ],
-          ),
+            ),
+            const Divider(
+              height: 1,
+              thickness: 0.5,
+              color: AppColors.border,
+            ),
+          ],
+        ),
         ),
       ),
     );

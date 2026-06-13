@@ -31,11 +31,18 @@ class WidgetInteractionReceiver : BroadcastReceiver() {
                 PlansAppWidgetProvider.handleSetView(context, appWidgetId, view)
             }
             "com.plansapp.action.WIDGET_CLICK" -> {
-                val clickType = intent.getStringExtra("click_type") ?: return
+                val clickType = intent.getStringExtra("click_type") ?: run {
+                    android.util.Log.e("WidgetToggle", "click_type is null, action=${intent.action}")
+                    return
+                }
                 when (clickType) {
                     "toggle" -> {
                         val appWidgetId = intent.getIntExtra("appWidgetId", -1)
-                        val taskId = intent.getStringExtra("task_id") ?: return
+                        val taskId = intent.getStringExtra("task_id") ?: run {
+                            android.util.Log.e("WidgetToggle", "task_id is null, appWidgetId=$appWidgetId")
+                            return
+                        }
+                        android.util.Log.d("WidgetToggle", "toggle appWidgetId=$appWidgetId taskId=$taskId")
                         PlansAppWidgetProvider.handleToggle(context, appWidgetId, taskId)
                     }
                     "open" -> {

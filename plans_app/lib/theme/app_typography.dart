@@ -26,7 +26,7 @@ class AppTypography {
 
   static TextStyle get bodyMedium => const TextStyle(
         fontFamily: _family,
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: FontWeight.w400,
       );
 
