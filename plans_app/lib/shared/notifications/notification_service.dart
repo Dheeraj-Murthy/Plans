@@ -104,26 +104,19 @@ class NotificationService {
     await Alarm.init();
     debugPrint('NotificationService: Alarm.init() done');
 
-    if (Platform.isAndroid) {
-      const settings = InitializationSettings(
-        android: AndroidInitializationSettings('@drawable/ic_stat_notification'),
-      );
-      await _fln.initialize(settings: settings);
-      _initialized = true;
-      // Request notification permission (Android 13+: shows dialog; < 13: no-op).
-      // Don't gate _initialized on the result — alarm package schedules regardless;
-      // the OS will suppress visible notifications if permission is denied.
-      final androidPlugin = _fln
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      final granted = await androidPlugin?.requestNotificationsPermission();
-      debugPrint(
-        'NotificationService: Android permission granted=$granted initialized=$_initialized',
-      );
-    } else {
-      // iOS permission requested automatically by alarm package on first use
-      _initialized = true;
-    }
+    // Initialize flutter_local_notifications on both platforms.
+    // Permission requests happen later in requestMobilePermissions()
+    // after the Activity is guaranteed attached (post-runApp).
+    const settings = InitializationSettings(
+      android: AndroidInitializationSettings('@drawable/ic_stat_notification'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+    );
+    await _fln.initialize(settings: settings);
+    _initialized = true;
 
     // Restore persisted alarm metadata so full-screen alarms survive app restart.
     await _loadAlarmInfos();
@@ -207,6 +200,37 @@ class NotificationService {
   static int _reminderId(String taskId) {
     final h = (_dueId(taskId) + 0x40000000) % 0x7FFFFFFF;
     return h == 0 ? 1 : h;
+  }
+
+  /// Request notification permissions on mobile.
+  ///
+  /// Must be called AFTER [init] and after the Activity is attached
+  /// (e.g. after `runApp()` or from a widget's `initState`).
+  /// On Android 13+ this shows the system POST_NOTIFICATIONS dialog.
+  /// On iOS this shows the system notification permission dialog.
+  static Future<void> requestMobilePermissions() async {
+    if (kIsWeb || Platform.isMacOS) return;
+    try {
+      if (Platform.isAndroid) {
+        final androidPlugin = _fln
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+        final granted = await androidPlugin?.requestNotificationsPermission();
+        debugPrint('NotificationService: Android permission granted=$granted');
+      } else {
+        final iosPlugin = _fln
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>();
+        final granted = await iosPlugin?.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+        debugPrint('NotificationService: iOS permission granted=$granted');
+      }
+    } catch (e, st) {
+      debugPrint('NotificationService.requestMobilePermissions failed: $e\n$st');
+    }
   }
 
   // ── Public API ───────────────────────────────────────────────────────────
@@ -377,7 +401,6 @@ class NotificationService {
           ),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
       );
       debugPrint('NotificationService: macOS scheduled id=$id "$title" at $tzAt');
     } catch (e, st) {
