@@ -100,6 +100,13 @@ final completedCountProvider = Provider<int>((ref) {
   return ref.watch(tasksProvider).where((t) => t.isCompleted).length;
 });
 
+final inboxCountProvider = Provider<int>((ref) {
+  return ref.watch(tasksProvider).where((t) {
+    if (t.isCompleted) return false;
+    return t.projectId == 'default' || t.dueDate != null;
+  }).length;
+});
+
 final projectTaskCountsProvider = Provider<Map<String, int>>((ref) {
   final tasks = ref.watch(tasksProvider);
   final counts = <String, int>{};
@@ -122,7 +129,10 @@ final filteredTasksProvider = Provider<List<Task>>((ref) {
 
   var filtered = switch (selection) {
     ViewSelection(:final view) => switch (view) {
-        ViewType.inbox => tasks.where((t) => !t.isCompleted).toList(),
+        ViewType.inbox => tasks.where((t) {
+            if (t.isCompleted) return false;
+            return t.projectId == 'default' || t.dueDate != null;
+          }).toList(),
         ViewType.timeline => tasks.where((t) {
             if (t.isCompleted) return false;
             return t.dueDate != null;

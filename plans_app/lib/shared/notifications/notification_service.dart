@@ -408,7 +408,7 @@ class NotificationService {
   }) async {
     if (Platform.isMacOS) {
       await _scheduleMacOS(id: id, title: title, body: body, at: at);
-    } else {
+    } else if (style == ReminderStyle.fullScreenAlarm) {
       await _scheduleAlarm(
         id: id,
         title: title,
@@ -416,9 +416,13 @@ class NotificationService {
         at: at,
         style: style,
       );
-      // Also schedule via flutter_local_notifications to ensure the
-      // notification appears even if the alarm service fails to start
-      // its foreground notification (e.g. Android 12+ restrictions).
+      await _scheduleAndroidNotification(
+        id: id,
+        title: title,
+        body: body,
+        at: at,
+      );
+    } else {
       await _scheduleAndroidNotification(
         id: id,
         title: title,

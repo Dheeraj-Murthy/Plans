@@ -120,8 +120,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
 
         private const val VIEW_PICKER = "picker"
         private const val VIEW_INBOX = "inbox"
-        private const val VIEW_TODAY = "today"
-        private const val VIEW_COMPLETED = "completed"
+        private const val VIEW_TIMELINE = "timeline"
         private const val VIEW_PROJECT_PREFIX = "project:"
 
         private const val MAX_VISIBLE_OPTIONS = 6
@@ -172,6 +171,14 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             views.setTextViewText(R.id.tv_header_title, headerText)
             views.setContentDescription(R.id.tv_header_title, "$selectedName — tap to switch view")
 
+            val rootIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
+                action = "es.antonborri.home_widget.action.LAUNCH"
+            }
+            val rootPi = PendingIntent.getActivity(
+                context, widgetId * 100, rootIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
             val headerIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
                 action = ACTION_SET_VIEW
                 putExtra(EXTRA_VIEW, VIEW_PICKER)
@@ -182,16 +189,8 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
             views.setOnClickPendingIntent(R.id.tv_header_title, headerPi)
-            views.setOnClickPendingIntent(R.id.iv_header_dot, headerPi)
-
-            val rootIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
-                action = "es.antonborri.home_widget.action.LAUNCH"
-            }
-            val rootPi = PendingIntent.getActivity(
-                context, widgetId * 100, rootIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-            )
-            views.setOnClickPendingIntent(R.id.ll_root, rootPi)
+            views.setOnClickPendingIntent(R.id.iv_header_dot, rootPi)
+            views.setOnClickPendingIntent(R.id.v_header_spacer, rootPi)
 
             val addIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
                 action = "es.antonborri.home_widget.action.LAUNCH"
@@ -241,8 +240,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             class BuiltInView(val name: String, val viewKey: String, val textId: Int, val dotId: Int, val rowId: Int, val dotRes: Int)
             val builtInViews = listOf(
                 BuiltInView("Inbox", VIEW_INBOX, R.id.tv_option_1, R.id.iv_dot_1, R.id.ll_option_1, R.drawable.widget_dot_purple),
-                BuiltInView("Today", VIEW_TODAY, R.id.tv_option_2, R.id.iv_dot_2, R.id.ll_option_2, R.drawable.widget_dot_green),
-                BuiltInView("Completed", VIEW_COMPLETED, R.id.tv_option_3, R.id.iv_dot_3, R.id.ll_option_3, R.drawable.widget_dot_orange),
+                BuiltInView("Timeline", VIEW_TIMELINE, R.id.tv_option_2, R.id.iv_dot_2, R.id.ll_option_2, R.drawable.widget_dot_green),
             )
 
             for (b in builtInViews) {
@@ -339,8 +337,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
         private fun getViewDisplayName(widgetData: SharedPreferences, view: String): String {
             return when (view) {
                 VIEW_INBOX -> "Inbox"
-                VIEW_TODAY -> "Today"
-                VIEW_COMPLETED -> "Completed"
+                VIEW_TIMELINE -> "Timeline"
                 VIEW_PICKER -> ""
                 else -> {
                     if (view.startsWith(VIEW_PROJECT_PREFIX)) {
@@ -456,6 +453,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                     buildTaskListViews(context, prefs, appWidgetId, view)
                 }
                 appWidgetManager.updateAppWidget(appWidgetId, views)
+                appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.task_list)
             } catch (e: Exception) {
                 Log.e(TAG, "handleSetView failed", e)
             }
@@ -467,7 +465,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val db = WidgetDbHelper.getInstance(context)
 
-                val allProjects = db.getProjects()
+                val allProjects = db.getProjects().filter { it.id != "default" }
                 prefs.edit().putString("widget_projects", JSONArray(allProjects.map { p ->
                     JSONObject().apply {
                         put("id", p.id)
@@ -476,23 +474,29 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                     }
                 }).toString()).apply()
 
+                val viewsToRefresh = mutableListOf(VIEW_INBOX, VIEW_TIMELINE)
+                for (p in allProjects) {
+                    viewsToRefresh.add("${VIEW_PROJECT_PREFIX}${p.id}")
+                }
+
+                for (view in viewsToRefresh) {
+                    val tasks = db.getTasks(view)
+                    prefs.edit().putString("widget_tasks_$view", JSONArray(tasks.map { t ->
+                        JSONObject().apply {
+                            put("id", t.id)
+                            put("title", t.title)
+                            put("due_date", t.dueDate ?: JSONObject.NULL)
+                            put("priority", t.priority)
+                            put("is_completed", t.isCompleted)
+                            put("project_id", t.projectId)
+                        }
+                    }).toString()).apply()
+                }
+
                 for (widgetId in appWidgetIds) {
-                    val view = prefs.getString("widget_view_$widgetId", VIEW_INBOX) ?: VIEW_INBOX
-                    if (view != VIEW_PICKER) {
-                        val tasks = db.getTasks(view)
-                        prefs.edit().putString("widget_tasks_$view", JSONArray(tasks.map { t ->
-                            JSONObject().apply {
-                                put("id", t.id)
-                                put("title", t.title)
-                                put("due_date", t.dueDate ?: JSONObject.NULL)
-                                put("priority", t.priority)
-                                put("is_completed", t.isCompleted)
-                                put("project_id", t.projectId)
-                            }
-                        }).toString()).apply()
-                    }
                     val views = buildWidgetViews(context, prefs, widgetId)
                     appWidgetManager.updateAppWidget(widgetId, views)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(widgetId, R.id.task_list)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "handleRefresh failed", e)

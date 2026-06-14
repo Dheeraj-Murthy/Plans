@@ -3,7 +3,6 @@ package com.plansapp.widget
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
-import java.util.Calendar
 
 data class WidgetTask(
     val id: String,
@@ -59,19 +58,8 @@ class WidgetDbHelper private constructor(context: Context) {
         val (query, args) = when {
             view == "inbox" ->
                 "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE is_deleted = 0 AND is_completed = 0 AND (project_id = 'default' OR due_date IS NOT NULL) ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to emptyArray()
-            view == "today" -> {
-                val now = Calendar.getInstance()
-                now.set(Calendar.HOUR_OF_DAY, 0)
-                now.set(Calendar.MINUTE, 0)
-                now.set(Calendar.SECOND, 0)
-                now.set(Calendar.MILLISECOND, 0)
-                val start = now.timeInMillis
-                now.add(Calendar.DAY_OF_YEAR, 1)
-                val end = now.timeInMillis
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE due_date >= ? AND due_date < ? AND is_deleted = 0 AND is_completed = 0 ORDER BY due_date" to arrayOf(start.toString(), end.toString())
-            }
-            view == "completed" ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE is_deleted = 0 AND is_completed = 1 ORDER BY updated_at DESC LIMIT 50" to emptyArray()
+            view == "timeline" ->
+                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE due_date IS NOT NULL AND is_deleted = 0 AND is_completed = 0 ORDER BY due_date" to emptyArray()
             view.startsWith("project:") ->
                 "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE project_id = ? AND is_deleted = 0 AND is_completed = 0 ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to arrayOf(view.removePrefix("project:"))
             else ->

@@ -167,6 +167,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
           onDoubleTap: _openEditSheet,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
               decoration: BoxDecoration(
@@ -218,7 +219,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                             borderRadius: BorderRadius.circular(2),
                           ),
                         ),
-                        const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: 4),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,6 +268,8 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                       child: AnimatedDefaultTextStyle(
                                         duration: AppAnimations.medium,
                                         curve: AppAnimations.easeOut,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                         style: AppTypography.bodyMedium
                                             .copyWith(
                                               color: task.isCompleted
@@ -321,14 +324,14 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                       if (task.priority != TaskPriority.none &&
                           !task.isCompleted)
                         Padding(
-                          padding: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.only(right: 4),
                           child: PriorityDot(priority: task.priority),
                         ),
 
                       // Project pill
                       if (widget.projectName != null && !task.isCompleted)
                         Padding(
-                          padding: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.only(right: 4),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
@@ -351,7 +354,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                       // Recurrence icon
                       if (task.recurrence != null && !task.isCompleted)
                         Padding(
-                          padding: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.only(right: 4),
                           child: Icon(
                             Icons.repeat_outlined,
                             size: 12,
@@ -413,10 +416,8 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                         ),
 
                       // Hover actions
-                      AnimatedOpacity(
-                        duration: AppAnimations.fast,
-                        opacity: _isHovered ? 1 : 0,
-                        child: Row(
+                      if (_isHovered)
+                        Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             HoverActionIcon(
@@ -444,11 +445,9 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                             ),
                           ],
                         ),
-                      ),
                     ],
                   ),
-
-                  const SizedBox(width: AppSpacing.sm),
+                  const SizedBox(width: 5),
                 ],
               ),
             ),

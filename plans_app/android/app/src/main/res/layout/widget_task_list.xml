@@ -27,14 +27,20 @@
 
         <TextView
             android:id="@+id/tv_header_title"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:background="@drawable/widget_ripple"
             android:textColor="#7C6DF2"
             android:textSize="14sp"
             android:textStyle="bold"
             android:maxLines="1" />
+
+        <LinearLayout
+            android:id="@+id/v_header_spacer"
+            android:layout_width="0dp"
+            android:layout_height="28dp"
+            android:layout_weight="1"
+            android:gravity="center_vertical" />
 
         <TextView
             android:id="@+id/btn_add"

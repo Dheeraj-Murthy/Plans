@@ -21,7 +21,7 @@ class SlimSidebar extends ConsumerWidget {
     final projects = ref.watch(projectsProvider);
     final selection = ref.watch(sidebarSelectionProvider);
 
-    final totalTasks = ref.watch(tasksProvider).where((t) => !t.isCompleted).length;
+    final inboxCount = ref.watch(inboxCountProvider);
     final timelineCount = ref.watch(timelineCountProvider);
     final completedCount = ref.watch(completedCountProvider);
 
@@ -47,7 +47,7 @@ class SlimSidebar extends ConsumerWidget {
           SidebarItem(
             icon: Icons.inbox_rounded,
             label: 'Inbox',
-            count: totalTasks,
+            count: inboxCount,
             isActive: selection is ViewSelection &&
                 selection.view == ViewType.inbox,
             onTap: () => ref

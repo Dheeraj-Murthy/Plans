@@ -37,22 +37,21 @@ class WidgetBridge {
   }
 
   static Future<void> _saveTasks(List<Task> allTasks) async {
-    final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final todayEnd = todayStart.add(const Duration(days: 1));
-
     final inboxTasks = allTasks
         .where((t) =>
             !t.isCompleted &&
             (t.projectId == 'default' || t.dueDate != null))
-        .toList();
-    final todayTasks = allTasks
-        .where((t) =>
-            t.dueDate != null &&
-            t.dueDate!.isAfter(todayStart) &&
-            t.dueDate!.isBefore(todayEnd) &&
-            !t.isCompleted)
-        .toList();
+        .toList()
+      ..sort((a, b) {
+        if (a.dueDate == null && b.dueDate == null) return 0;
+        if (a.dueDate == null) return -1;
+        if (b.dueDate == null) return 1;
+        return a.dueDate!.compareTo(b.dueDate!);
+      });
+    final timelineTasks = allTasks
+        .where((t) => t.dueDate != null && !t.isCompleted)
+        .toList()
+      ..sort((a, b) => a.dueDate!.compareTo(b.dueDate!));
     final completedTasks = allTasks.where((t) => t.isCompleted).take(50).toList();
 
     await HomeWidget.saveWidgetData<String>(
@@ -60,8 +59,8 @@ class WidgetBridge {
       jsonEncode(inboxTasks.map(_taskToJson).toList()),
     );
     await HomeWidget.saveWidgetData<String>(
-      'widget_tasks_today',
-      jsonEncode(todayTasks.map(_taskToJson).toList()),
+      'widget_tasks_timeline',
+      jsonEncode(timelineTasks.map(_taskToJson).toList()),
     );
     await HomeWidget.saveWidgetData<String>(
       'widget_tasks_completed',
@@ -80,9 +79,10 @@ class WidgetBridge {
   }
 
   static Future<void> _saveProjects(List<Project> allProjects) async {
+    final filtered = allProjects.where((p) => p.id != 'default').toList();
     await HomeWidget.saveWidgetData<String>(
       'widget_projects',
-      jsonEncode(allProjects
+      jsonEncode(filtered
           .map((p) => {
                 'id': p.id,
                 'name': p.name,
