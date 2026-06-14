@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/project_provider.dart';
+import '../models/project.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_typography.dart';
@@ -79,26 +80,7 @@ class SlimSidebar extends ConsumerWidget {
           const SidebarSectionHeader(label: 'Projects'),
 
           Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: projects.length,
-              itemBuilder: (context, index) {
-                final project = projects[index];
-                final count = ref.watch(projectTaskCountProvider(project.id));
-                return SidebarItem(
-                  icon: projectIcon(project.name),
-                  label: project.name,
-                  projectId: project.id,
-                  colorIndex: project.colorIndex,
-                  count: count > 0 ? count : null,
-                  isActive: selection is ProjectSelection &&
-                      selection.projectId == project.id,
-                  onTap: () => ref
-                      .read(sidebarSelectionProvider.notifier)
-                      .select(ProjectSelection(project.id)),
-                );
-              },
-            ),
+            child: _ProjectList(projects: projects),
           ),
 
           // Add project button
@@ -170,6 +152,37 @@ class _SidebarHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProjectList extends ConsumerWidget {
+  final List<Project> projects;
+  const _ProjectList({required this.projects});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final visible = projects.where((p) => p.id != 'default').toList();
+    final selection = ref.watch(sidebarSelectionProvider);
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: visible.length,
+      itemBuilder: (context, index) {
+        final project = visible[index];
+        final count = ref.watch(projectTaskCountProvider(project.id));
+        return SidebarItem(
+          icon: projectIcon(project.name),
+          label: project.name,
+          projectId: project.id,
+          colorIndex: project.colorIndex,
+          count: count > 0 ? count : null,
+          isActive: selection is ProjectSelection &&
+              selection.projectId == project.id,
+          onTap: () => ref
+              .read(sidebarSelectionProvider.notifier)
+              .select(ProjectSelection(project.id)),
+        );
+      },
     );
   }
 }

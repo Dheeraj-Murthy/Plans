@@ -305,11 +305,9 @@ class NotificationService {
 
     await cancelForTask(task.id);
 
-    final fireAt = dueTime.isAfter(now)
-        ? dueTime
-        : secondsPast >= 60
-            ? now.add(const Duration(minutes: 5))
-            : now.add(const Duration(seconds: 5));
+    if (!dueTime.isAfter(now)) return;
+
+    final fireAt = dueTime;
 
     final dueStyle = style ?? ReminderStyle.notification;
     final dueId = _dueId(task.id);
@@ -382,9 +380,18 @@ class NotificationService {
 
   static Future<void> rescheduleAll(List<Task> tasks) async {
     if (!_initialized) return;
-    if (!Platform.isMacOS) return;
+    if (!Platform.isMacOS) {
+      _currentFullScreenAlarmId = null;
+      for (final id in _alarmInfos.keys) {
+        await Alarm.stop(id);
+        await _fln.cancel(id: id);
+      }
+      _alarmInfos.clear();
+      await _fln.cancelAll();
+    }
+    final now = DateTime.now();
     for (final task in tasks) {
-      if (!task.isCompleted && task.dueDate != null) {
+      if (!task.isCompleted && task.dueDate != null && task.dueDate!.isAfter(now)) {
         await scheduleForTask(task, style: _styleForPriority(task.priority), persist: false);
       }
     }

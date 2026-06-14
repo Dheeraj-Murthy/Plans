@@ -75,22 +75,23 @@ Future<String?> showProjectMenu(
     ),
     items: [
       for (int i = 0; i < projects.length; i++)
-        PopupMenuItem(
-          value: projects[i].id,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                projectIcon(projects[i].name),
-                size: 16,
-                color: AppColors.projectColors[
-                    projects[i].colorIndex % AppColors.projectColors.length],
-              ),
-              const SizedBox(width: 8),
-              Text(projects[i].name, style: AppTypography.bodySmall),
-            ],
+        if (projects[i].id != 'default')
+          PopupMenuItem(
+            value: projects[i].id,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  projectIcon(projects[i].name),
+                  size: 16,
+                  color: AppColors.projectColors[
+                      projects[i].colorIndex % AppColors.projectColors.length],
+                ),
+                const SizedBox(width: 8),
+                Text(projects[i].name, style: AppTypography.bodySmall),
+              ],
+            ),
           ),
-        ),
     ],
   );
 }

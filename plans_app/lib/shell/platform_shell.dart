@@ -404,11 +404,11 @@ class _MobileDrawer extends ConsumerWidget {
             Expanded(
               child: ListView.builder(
                 padding: EdgeInsets.zero,
-                itemCount: projects.length,
+                itemCount: projects.length - (projects.any((p) => p.id == 'default') ? 1 : 0),
                 itemBuilder: (context, index) {
-                  final project = projects[index];
-                  final count =
-                      ref.watch(projectTaskCountProvider(project.id));
+                  final visible = projects.where((p) => p.id != 'default').toList();
+                  final project = visible[index];
+                  final count = ref.watch(projectTaskCountProvider(project.id));
                   return SidebarItem(
                     icon: projectIcon(project.name),
                     label: project.name,
