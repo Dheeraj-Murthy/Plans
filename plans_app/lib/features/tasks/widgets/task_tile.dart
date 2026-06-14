@@ -163,11 +163,9 @@ class _TaskTileState extends ConsumerState<TaskTile> {
           },
         ),
         onPointerCancel: (_) => setState(() => _isPressed = false),
-        child: GestureDetector(
-          onDoubleTap: _openEditSheet,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Container(
               decoration: BoxDecoration(
@@ -255,16 +253,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                   const SizedBox(width: AppSpacing.md),
                                   Expanded(
                                     child: GestureDetector(
-                                      onTap: () {
-                                        final wasCompleted = ref
-                                            .read(tasksProvider.notifier)
-                                            .toggleTask(widget.task.id);
-                                        if (!wasCompleted) {
-                                          final action = TaskToggled(widget.task.id, false);
-                                          ref.read(undoStackProvider.notifier).push(action);
-                                          ref.read(lastUndoActionProvider.notifier).set(action);
-                                        }
-                                      },
+                                      onTap: _openEditSheet,
                                       child: AnimatedDefaultTextStyle(
                                         duration: AppAnimations.medium,
                                         curve: AppAnimations.easeOut,
@@ -459,8 +448,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
           ],
         ),
         ),
-      ),
-    );
+      );
   }
 }
 

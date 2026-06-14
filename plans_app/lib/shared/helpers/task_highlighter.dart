@@ -51,7 +51,7 @@ class TaskHighlighter {
     caseSensitive: false,
   );
   static final _timeRe = RegExp(
-    r'(?:at\s+)?\b(\d{1,2})([:.](\d{2}))?\s*(am|pm)?\b',
+    r'(?:at\s+)?\b(\d{1,2})([:.](\d{1,2}))?\s*(am|pm)?\b',
     caseSensitive: false,
   );
 
@@ -94,7 +94,6 @@ class TaskHighlighter {
         final hasMinute = m.group(2) != null;
         final hasAmPm = m.group(4) != null;
         if (!hasAt && !hasMinute && !hasAmPm) continue;
-        if (full.contains('.') && !hasAt) continue;
       }
 
       tokens.add(HighlightToken(start: s, end: e, color: color));

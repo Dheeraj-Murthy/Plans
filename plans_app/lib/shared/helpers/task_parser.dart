@@ -247,7 +247,7 @@ class TaskParser {
 
   static _TimeInfo? _extractTime(String text) {
     final re = RegExp(
-      r'(?:at\s+)?\b(\d{1,2})([:.](\d{2}))?\s*(am|pm)?\b',
+      r'(?:at\s+)?\b(\d{1,2})([:.](\d{1,2}))?\s*(am|pm)?\b',
       caseSensitive: false,
     );
     for (final m in re.allMatches(text)) {
@@ -256,9 +256,6 @@ class TaskParser {
       final hasMinute = m.group(2) != null;
       final hasAmPm = m.group(4) != null;
       if (!hasAt && !hasMinute && !hasAmPm) continue;
-
-      // Decimal "." separator requires "at" prefix
-      if (full.contains('.') && !hasAt) continue;
 
       final hour = int.parse(m.group(1)!);
       final minute = m.group(2) != null ? int.parse(m.group(3)!) : 0;

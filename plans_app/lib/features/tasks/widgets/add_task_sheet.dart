@@ -33,6 +33,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   final _priorityKey = GlobalKey();
   final _projectKey = GlobalKey();
   final _reminderKey = GlobalKey();
+  final _titleFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -54,12 +55,20 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     } else {
       _localProjectIndex = 0;
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _titleFocusNode.requestFocus();
+      _titleController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _titleController.text.length),
+      );
+    });
   }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
+    _titleFocusNode.dispose();
     super.dispose();
   }
 
@@ -104,7 +113,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
               Expanded(
                 child: TextField(
                   controller: _titleController,
-                  autofocus: !_isEditing,
+                  focusNode: _titleFocusNode,
+                  autofocus: true,
                   style: AppTypography.bodyLarge.copyWith(
                     color: AppColors.textPrimary,
                   ),
