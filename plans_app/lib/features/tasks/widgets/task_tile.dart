@@ -199,7 +199,9 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                   ),
                   Expanded(
                     child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: hasDescription
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.center,
                       children: [
                         AnimatedContainer(
                           duration: AppAnimations.normal,
@@ -234,7 +236,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                           .read(tasksProvider.notifier)
                                           .toggleTask(task.id);
                                       if (!wasCompleted) {
-                                        final action = TaskToggled(task.id, false);
+                                        final action = TaskToggled(task.id);
                                         ref.read(undoStackProvider.notifier).push(action);
                                         ref.read(lastUndoActionProvider.notifier).set(action);
                                       }

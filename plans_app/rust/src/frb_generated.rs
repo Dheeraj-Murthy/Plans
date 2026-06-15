@@ -837,6 +837,7 @@ impl SseDecode for crate::models::Task {
         let mut var_dueDate = <Option<i64>>::sse_decode(deserializer);
         let mut var_priority = <i64>::sse_decode(deserializer);
         let mut var_isCompleted = <bool>::sse_decode(deserializer);
+        let mut var_isDeleted = <bool>::sse_decode(deserializer);
         let mut var_projectId = <String>::sse_decode(deserializer);
         let mut var_createdAt = <i64>::sse_decode(deserializer);
         let mut var_updatedAt = <i64>::sse_decode(deserializer);
@@ -850,6 +851,7 @@ impl SseDecode for crate::models::Task {
             due_date: var_dueDate,
             priority: var_priority,
             is_completed: var_isCompleted,
+            is_deleted: var_isDeleted,
             project_id: var_projectId,
             created_at: var_createdAt,
             updated_at: var_updatedAt,
@@ -975,6 +977,7 @@ impl flutter_rust_bridge::IntoDart for crate::models::Task {
             self.due_date.into_into_dart().into_dart(),
             self.priority.into_into_dart().into_dart(),
             self.is_completed.into_into_dart().into_dart(),
+            self.is_deleted.into_into_dart().into_dart(),
             self.project_id.into_into_dart().into_dart(),
             self.created_at.into_into_dart().into_dart(),
             self.updated_at.into_into_dart().into_dart(),
@@ -1099,6 +1102,7 @@ impl SseEncode for crate::models::Task {
         <Option<i64>>::sse_encode(self.due_date, serializer);
         <i64>::sse_encode(self.priority, serializer);
         <bool>::sse_encode(self.is_completed, serializer);
+        <bool>::sse_encode(self.is_deleted, serializer);
         <String>::sse_encode(self.project_id, serializer);
         <i64>::sse_encode(self.created_at, serializer);
         <i64>::sse_encode(self.updated_at, serializer);

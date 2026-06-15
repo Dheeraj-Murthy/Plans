@@ -196,9 +196,14 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 const SizedBox(width: AppSpacing.sm),
                 GestureDetector(
                   onTap: () {
-                    ref
+                    final deleted = ref
                         .read(tasksProvider.notifier)
                         .deleteTask(widget.existingTask!.id);
+                    if (deleted != null) {
+                      final action = TaskDeleted(deleted);
+                      ref.read(undoStackProvider.notifier).push(action);
+                      ref.read(lastUndoActionProvider.notifier).set(action);
+                    }
                     Navigator.of(context).pop();
                   },
                   child: Container(

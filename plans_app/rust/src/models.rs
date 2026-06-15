@@ -8,6 +8,8 @@ pub struct Task {
     pub due_date: Option<i64>,
     pub priority: i64,
     pub is_completed: bool,
+    #[serde(default)]
+    pub is_deleted: bool,
     pub project_id: String,
     pub created_at: i64,
     pub updated_at: i64,

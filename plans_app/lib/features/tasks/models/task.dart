@@ -9,6 +9,7 @@ class Task {
   final DateTime? dueDate;
   final TaskPriority priority;
   final bool isCompleted;
+  final bool isDeleted;
   final String projectId;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -23,6 +24,7 @@ class Task {
     this.dueDate,
     this.priority = TaskPriority.none,
     this.isCompleted = false,
+    this.isDeleted = false,
     this.projectId = 'default',
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -41,6 +43,7 @@ class Task {
     Object? recurrence = _absent,
     TaskPriority? priority,
     bool? isCompleted,
+    bool? isDeleted,
     String? projectId,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -55,6 +58,7 @@ class Task {
       recurrence: recurrence == _absent ? this.recurrence : recurrence as String?,
       priority: priority ?? this.priority,
       isCompleted: isCompleted ?? this.isCompleted,
+      isDeleted: isDeleted ?? this.isDeleted,
       projectId: projectId ?? this.projectId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

@@ -19,8 +19,7 @@ class TaskDeleted extends UndoAction {
 
 class TaskToggled extends UndoAction {
   final String id;
-  final bool wasCompleted;
-  TaskToggled(this.id, this.wasCompleted);
+  TaskToggled(this.id);
 }
 
 final undoStackProvider =
@@ -43,7 +42,16 @@ class UndoStackNotifier extends Notifier<List<UndoAction>> {
   @override
   List<UndoAction> build() => [];
 
-  void push(UndoAction action) => state = [...state, action];
+  static const _maxSize = 50;
+
+  void push(UndoAction action) {
+    final capped = [...state, action];
+    if (capped.length > _maxSize) {
+      state = capped.sublist(capped.length - _maxSize);
+    } else {
+      state = capped;
+    }
+  }
 
   UndoAction? pop() {
     if (state.isEmpty) return null;
@@ -222,7 +230,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     ref.read(syncServiceProvider.notifier).markDirty();
     NotificationService.scheduleForTask(
       task,
-      style: task.priority == TaskPriority.high
+      style: task.priority == TaskPriority.critical
           ? ReminderStyle.fullScreenAlarm
           : ReminderStyle.notification,
     );
@@ -273,7 +281,7 @@ class TasksNotifier extends Notifier<List<Task>> {
             ref.read(syncServiceProvider.notifier).markDirty();
             NotificationService.scheduleForTask(
               nextTask,
-              style: nextTask.priority == TaskPriority.high
+              style: nextTask.priority == TaskPriority.critical
                   ? ReminderStyle.fullScreenAlarm
                   : ReminderStyle.notification,
             );
@@ -301,7 +309,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     state = [...state, task];
     NotificationService.scheduleForTask(
       task,
-      style: task.priority == TaskPriority.high
+      style: task.priority == TaskPriority.critical
           ? ReminderStyle.fullScreenAlarm
           : ReminderStyle.notification,
     );
@@ -330,7 +338,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     ref.read(syncServiceProvider.notifier).markDirty();
     unawaited(NotificationService.scheduleForTask(
       updated,
-      style: updated.priority == TaskPriority.high
+      style: updated.priority == TaskPriority.critical
           ? ReminderStyle.fullScreenAlarm
           : ReminderStyle.notification,
     ));

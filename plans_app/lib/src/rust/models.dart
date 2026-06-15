@@ -37,6 +37,7 @@ class Task {
   final PlatformInt64? dueDate;
   final PlatformInt64 priority;
   final bool isCompleted;
+  final bool isDeleted;
   final String projectId;
   final PlatformInt64 createdAt;
   final PlatformInt64 updatedAt;
@@ -51,6 +52,7 @@ class Task {
     this.dueDate,
     required this.priority,
     required this.isCompleted,
+    required this.isDeleted,
     required this.projectId,
     required this.createdAt,
     required this.updatedAt,
@@ -67,6 +69,7 @@ class Task {
       dueDate.hashCode ^
       priority.hashCode ^
       isCompleted.hashCode ^
+      isDeleted.hashCode ^
       projectId.hashCode ^
       createdAt.hashCode ^
       updatedAt.hashCode ^
@@ -85,6 +88,7 @@ class Task {
           dueDate == other.dueDate &&
           priority == other.priority &&
           isCompleted == other.isCompleted &&
+          isDeleted == other.isDeleted &&
           projectId == other.projectId &&
           createdAt == other.createdAt &&
           updatedAt == other.updatedAt &&

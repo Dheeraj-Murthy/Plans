@@ -423,12 +423,6 @@ class NotificationService {
         at: at,
         style: style,
       );
-      await _scheduleAndroidNotification(
-        id: id,
-        title: title,
-        body: body,
-        at: at,
-      );
     } else {
       await _scheduleAndroidNotification(
         id: id,
