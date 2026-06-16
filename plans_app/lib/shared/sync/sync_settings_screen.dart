@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:plans_app/shared/notifications/notification_service.dart';
 import 'package:plans_app/shared/sync/sync_service.dart';
 
 class SyncSettingsScreen extends ConsumerWidget {
@@ -49,8 +50,48 @@ class SyncSettingsScreen extends ConsumerWidget {
               title: const Text('Sync now'),
               onTap: sync.checkForUpdates,
             ),
+          const Divider(height: 32),
+          _NotificationSection(),
         ],
       ),
+    );
+  }
+}
+
+class _NotificationSection extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            'Notifications',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        FutureBuilder<bool>(
+          future: NotificationService.areNotificationsEnabled,
+          builder: (context, snapshot) {
+            final enabled = snapshot.data ?? false;
+            return ListTile(
+              leading: Icon(
+                enabled ? Icons.notifications_active : Icons.notifications_off,
+                color: enabled ? Colors.green : Colors.red,
+              ),
+              title: const Text('Push notifications'),
+              subtitle: Text(enabled ? 'Enabled' : 'Disabled'),
+              trailing: FilledButton.tonal(
+                onPressed: () => NotificationService.requestMobilePermissions(),
+                child: const Text('Fix'),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }

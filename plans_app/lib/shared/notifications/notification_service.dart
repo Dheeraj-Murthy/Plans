@@ -259,6 +259,7 @@ class NotificationService {
         debugPrint('NotificationService: Android POST_NOTIFICATIONS granted=$granted');
         final fsGranted = await androidPlugin?.requestFullScreenIntentPermission();
         debugPrint('NotificationService: Android USE_FULL_SCREEN_INTENT granted=$fsGranted');
+        await androidPlugin?.requestExactAlarmsPermission();
       } else {
         final iosPlugin = _fln
             .resolvePlatformSpecificImplementation<
@@ -272,6 +273,22 @@ class NotificationService {
       }
     } catch (e, st) {
       debugPrint('NotificationService.requestMobilePermissions failed: $e\n$st');
+    }
+  }
+
+  // ── Permission status ────────────────────────────────────────────────────
+
+  static Future<bool> get areNotificationsEnabled async {
+    if (kIsWeb || Platform.isMacOS) return true;
+    try {
+      if (Platform.isAndroid) {
+        final androidPlugin = _fln.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+        return await androidPlugin?.areNotificationsEnabled() ?? false;
+      }
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -532,7 +549,7 @@ class NotificationService {
             presentSound: true,
           ),
         ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
       debugPrint('NotificationService: fln scheduled id=$id "$title" at $tzAt');
     } catch (e, st) {

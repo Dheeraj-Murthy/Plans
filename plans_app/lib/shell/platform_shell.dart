@@ -17,6 +17,7 @@ import '../theme/app_theme.dart';
 import '../theme/app_typography.dart';
 import 'package:go_router/go_router.dart';
 import '../main.dart' show widgetIntentProvider;
+import '../shared/notifications/notification_service.dart';
 import '../shared/sync/sync_service.dart';
 import '../shared/sync/sync_indicator.dart';
 import '../shared/widgets/app_toast.dart';
@@ -45,6 +46,9 @@ class _PlatformAdaptiveShellState
       _deeplinkChannel.setMethodCallHandler(_handleNativeCall);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        NotificationService.requestMobilePermissions();
+      }
       _checkPendingWidgetSync();
       final intent = ref.read(widgetIntentProvider);
       if (intent?['action'] == 'add_task') {
