@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/task.dart';
+import '../../projects/models/project.dart';
 import '../providers/task_provider.dart';
 import '../providers/subtask_provider.dart';
 import '../../../shared/widgets/app_chip.dart';
@@ -13,7 +14,11 @@ import '../../../shared/helpers/task_parser.dart';
 import '../../../shared/widgets/highlighted_task_controller.dart';
 import '../../projects/providers/project_provider.dart';
 import '../../../theme/app_animations.dart';
+import 'subtasks_section.dart';
 
+/// The add/edit task composer. Shown as a bottom sheet (mobile), a floating
+/// dialog (editing an existing task on any platform), or hosted directly by
+/// QuickAddApp (the homescreen-widget quick-add flow).
 class AddTaskSheet extends ConsumerStatefulWidget {
   final Task? existingTask;
 
@@ -35,14 +40,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   final _projectKey = GlobalKey();
   final _reminderKey = GlobalKey();
   final _titleFocusNode = FocusNode();
-  final _newSubtaskController = TextEditingController();
-  final _subtaskFocusNode = FocusNode();
   // Staged subtask titles for a task that doesn't exist yet — flushed to
   // real subtasks in _submit() once addTask() returns the new task's id.
-  final List<String> _stagedSubtasks = [];
-  // Collapsed behind a "+ Add subtask" button by default — only expanded
-  // up front when the task already has subtasks to show.
-  late bool _subtasksExpanded;
+  List<String> _stagedSubtasks = [];
 
   @override
   void initState() {
@@ -55,7 +55,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     _priority = task?.priority ?? TaskPriority.none;
     _reminderMinutes = task?.reminderMinutes;
     _recurrence = task?.recurrence;
-    _subtasksExpanded = (task?.subtaskTotal ?? 0) > 0;
 
     if (task != null) {
       final projects = ref.read(projectsProvider);
@@ -79,8 +78,6 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     _titleController.dispose();
     _descriptionController.dispose();
     _titleFocusNode.dispose();
-    _newSubtaskController.dispose();
-    _subtaskFocusNode.dispose();
     super.dispose();
   }
 
@@ -104,282 +101,171 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
           AppSpacing.xl + bottomInset,
         ),
         child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.radio_button_unchecked_rounded,
-                size: 20,
-                color: switch (_priority) {
-                  TaskPriority.critical => AppColors.priorityCritical,
-                  TaskPriority.high => AppColors.priorityHigh,
-                  TaskPriority.medium => AppColors.priorityMedium,
-                  TaskPriority.low => AppColors.priorityLow,
-                  TaskPriority.none => AppColors.textMuted,
-                }.withValues(alpha: 0.4),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: TextField(
-                  controller: _titleController,
-                  focusNode: _titleFocusNode,
-                  autofocus: true,
-                  style: AppTypography.bodyLarge.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'What needs to be done?',
-                    hintStyle: AppTypography.bodyLarge.copyWith(
-                      color: AppColors.textMuted,
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    spacing: AppSpacing.sm,
-                    children: [
-                      AppChip(
-                        key: _priorityKey,
-                        icon: Icons.flag_outlined,
-                        label: _priority == TaskPriority.none
-                            ? 'Priority'
-                            : _priority.name,
-                        color: _priority == TaskPriority.critical
-                            ? AppColors.priorityCritical
-                            : _priority == TaskPriority.high
-                                ? AppColors.priorityHigh
-                                : _priority == TaskPriority.medium
-                                    ? AppColors.priorityMedium
-                                    : null,
-                        onTap: _showPriorityMenu,
-                      ),
-                      AppChip(
-                        icon: Icons.calendar_today_outlined,
-                        label: _dueDate != null
-                            ? formatDueDateTime(_dueDate!)
-                            : 'Due date',
-                        onTap: _pickDate,
-                      ),
-                      AppChip(
-                        key: _reminderKey,
-                        icon: Icons.notifications_outlined,
-                        label: _reminderLabel,
-                        color: _reminderMinutes != null ? AppColors.accent : null,
-                        onTap: _showReminderMenu,
-                      ),
-                      AppChip(
-                        icon: Icons.repeat_outlined,
-                        label: _recurrence != null
-                            ? Recurrence.fromStorage(_recurrence!).label
-                            : 'Repeat',
-                        color: _recurrence != null ? AppColors.accent : null,
-                        onTap: _showRecurrenceMenu,
-                      ),
-                      AppChip(
-                        key: _projectKey,
-                        icon: Icons.folder_outlined,
-                        label: projects
-                            .where((p) => p.id == currentProjectId)
-                            .firstOrNull
-                            ?.name ?? 'Project',
-                        onTap: _showProjectMenu,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_isEditing) ...[
-                const SizedBox(width: AppSpacing.sm),
-                GestureDetector(
-                  onTap: () {
-                    final deleted = ref
-                        .read(tasksProvider.notifier)
-                        .deleteTask(widget.existingTask!.id);
-                    if (deleted != null) {
-                      final action = TaskDeleted(deleted);
-                      ref.read(undoStackProvider.notifier).push(action);
-                      ref.read(lastUndoActionProvider.notifier).set(action);
-                    }
-                    Navigator.of(context).pop();
-                  },
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: AppColors.danger.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.delete_outline_rounded,
-                      size: 18,
-                      color: AppColors.danger,
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(width: AppSpacing.sm),
-              GestureDetector(
-                onTap: _submit,
-                child: AnimatedContainer(
-                  duration: AppAnimations.fast,
-                  curve: AppAnimations.easeOut,
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: AppColors.accent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(
-                    Icons.arrow_upward_rounded,
-                    size: 18,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(
-            color: AppColors.border,
-            height: 1,
-            thickness: 1,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.short_text_rounded,
-                size: 20,
-                color: AppColors.textMuted,
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: TextField(
-                  controller: _descriptionController,
-                  style: AppTypography.bodySmall.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Add description...',
-                    hintStyle: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textMuted,
-                    ),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  maxLines: null,
-                  minLines: 1,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(
-            color: AppColors.border,
-            height: 1,
-            thickness: 1,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _buildSubtasksSection(),
-        ],
-      ),
-    ),
-  );
-  }
-
-  Widget _buildSubtasksSection() {
-    if (!_subtasksExpanded) {
-      return GestureDetector(
-        onTap: () {
-          setState(() => _subtasksExpanded = true);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _subtaskFocusNode.requestFocus();
-          });
-        },
-        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.add_rounded, size: 18, color: AppColors.textMuted),
-            const SizedBox(width: AppSpacing.sm),
-            Text(
-              'Add subtask',
-              style: AppTypography.label.copyWith(color: AppColors.textMuted),
+            _buildTitleRow(),
+            const SizedBox(height: AppSpacing.md),
+            _buildChipsAndActionsRow(projects, currentProjectId),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(color: AppColors.border, height: 1, thickness: 1),
+            const SizedBox(height: AppSpacing.md),
+            _buildDescriptionField(),
+            const SizedBox(height: AppSpacing.md),
+            const Divider(color: AppColors.border, height: 1, thickness: 1),
+            const SizedBox(height: AppSpacing.md),
+            SubtasksSection(
+              taskId: widget.existingTask?.id,
+              stagedTitles: _stagedSubtasks,
+              onStagedTitlesChanged: (titles) =>
+                  setState(() => _stagedSubtasks = titles),
+              initiallyExpanded: (widget.existingTask?.subtaskTotal ?? 0) > 0,
             ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    final rows = <Widget>[];
+  Widget _buildTitleRow() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.radio_button_unchecked_rounded,
+          size: 20,
+          color: switch (_priority) {
+            TaskPriority.critical => AppColors.priorityCritical,
+            TaskPriority.high => AppColors.priorityHigh,
+            TaskPriority.medium => AppColors.priorityMedium,
+            TaskPriority.low => AppColors.priorityLow,
+            TaskPriority.none => AppColors.textMuted,
+          }.withValues(alpha: 0.4),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: TextField(
+            controller: _titleController,
+            focusNode: _titleFocusNode,
+            autofocus: true,
+            style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'What needs to be done?',
+              hintStyle: AppTypography.bodyLarge.copyWith(color: AppColors.textMuted),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-    if (_isEditing) {
-      final subtasks = ref.watch(subtasksProvider(widget.existingTask!.id));
-      for (final s in subtasks) {
-        rows.add(_SubtaskRow(
-          title: s.title,
-          isCompleted: s.isCompleted,
-          onToggle: () => ref
-              .read(subtasksProvider(widget.existingTask!.id).notifier)
-              .toggle(s.id),
-          onDelete: () => ref
-              .read(subtasksProvider(widget.existingTask!.id).notifier)
-              .remove(s.id),
-        ));
-      }
-    } else {
-      for (var i = 0; i < _stagedSubtasks.length; i++) {
-        final title = _stagedSubtasks[i];
-        rows.add(_SubtaskRow(
-          title: title,
-          isCompleted: false,
-          onToggle: null,
-          onDelete: () => setState(() => _stagedSubtasks.removeAt(i)),
-        ));
-      }
-    }
+  Widget _buildChipsAndActionsRow(List<Project> projects, String currentProjectId) {
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              spacing: AppSpacing.sm,
+              children: [
+                AppChip(
+                  key: _priorityKey,
+                  icon: Icons.flag_outlined,
+                  label: _priority == TaskPriority.none ? 'Priority' : _priority.name,
+                  color: _priority == TaskPriority.critical
+                      ? AppColors.priorityCritical
+                      : _priority == TaskPriority.high
+                          ? AppColors.priorityHigh
+                          : _priority == TaskPriority.medium
+                              ? AppColors.priorityMedium
+                              : null,
+                  onTap: _showPriorityMenu,
+                ),
+                AppChip(
+                  icon: Icons.calendar_today_outlined,
+                  label: _dueDate != null ? formatDueDateTime(_dueDate!) : 'Due date',
+                  onTap: _pickDate,
+                ),
+                AppChip(
+                  key: _reminderKey,
+                  icon: Icons.notifications_outlined,
+                  label: reminderLabel(_reminderMinutes),
+                  color: _reminderMinutes != null ? AppColors.accent : null,
+                  onTap: _showReminderMenu,
+                ),
+                AppChip(
+                  icon: Icons.repeat_outlined,
+                  label: _recurrence != null
+                      ? Recurrence.fromStorage(_recurrence!).label
+                      : 'Repeat',
+                  color: _recurrence != null ? AppColors.accent : null,
+                  onTap: _showRecurrenceMenu,
+                ),
+                AppChip(
+                  key: _projectKey,
+                  icon: Icons.folder_outlined,
+                  label: projects
+                          .where((p) => p.id == currentProjectId)
+                          .firstOrNull
+                          ?.name ??
+                      'Project',
+                  onTap: _showProjectMenu,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_isEditing) ...[
+          const SizedBox(width: AppSpacing.sm),
+          GestureDetector(
+            onTap: _deleteTask,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
+            ),
+          ),
+        ],
+        const SizedBox(width: AppSpacing.sm),
+        GestureDetector(
+          onTap: _submit,
+          child: AnimatedContainer(
+            duration: AppAnimations.fast,
+            curve: AppAnimations.easeOut,
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.accent,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.arrow_upward_rounded, size: 18, color: Colors.white),
+          ),
+        ),
+      ],
+    );
+  }
 
-    return Column(
+  Widget _buildDescriptionField() {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(Icons.checklist_rounded, size: 20, color: AppColors.textMuted),
-            const SizedBox(width: AppSpacing.sm),
-            Text('Subtasks', style: AppTypography.label.copyWith(color: AppColors.textMuted)),
-          ],
-        ),
-        if (rows.isNotEmpty) ...[
-          const SizedBox(height: AppSpacing.sm),
-          ...rows,
-        ],
-        const SizedBox(height: AppSpacing.sm),
-        Padding(
-          padding: const EdgeInsets.only(left: 28),
+        Icon(Icons.short_text_rounded, size: 20, color: AppColors.textMuted),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
           child: TextField(
-            controller: _newSubtaskController,
-            focusNode: _subtaskFocusNode,
+            controller: _descriptionController,
             style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
             decoration: InputDecoration(
-              hintText: 'Add subtask...',
+              hintText: 'Add description...',
               hintStyle: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
@@ -387,76 +273,28 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
               isDense: true,
               contentPadding: EdgeInsets.zero,
             ),
-            onSubmitted: _addSubtask,
+            maxLines: null,
+            minLines: 1,
           ),
         ),
       ],
     );
   }
 
-  void _addSubtask(String value) {
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return;
-    if (_isEditing) {
-      ref.read(subtasksProvider(widget.existingTask!.id).notifier).add(trimmed);
-    } else {
-      setState(() => _stagedSubtasks.add(trimmed));
+  void _deleteTask() {
+    final deleted = ref.read(tasksProvider.notifier).deleteTask(widget.existingTask!.id);
+    if (deleted != null) {
+      final action = TaskDeleted(deleted);
+      ref.read(undoStackProvider.notifier).push(action);
+      ref.read(lastUndoActionProvider.notifier).set(action);
     }
-    _newSubtaskController.clear();
+    Navigator.of(context).pop();
   }
-
-  String get _reminderLabel {
-    return switch (_reminderMinutes) {
-      null => 'Remind',
-      0 => 'At due time',
-      5 => '5 min before',
-      15 => '15 min before',
-      30 => '30 min before',
-      60 => '1 hr before',
-      _ => '$_reminderMinutes min before',
-    };
-  }
-
-  static const _reminderNone = -1;
 
   Future<void> _showReminderMenu() async {
-    final options = [_reminderNone, 0, 5, 15, 30, 60];
-    final labels = ['None', 'At due time', '5 min before', '15 min before', '30 min before', '1 hr before'];
-    final renderBox = _reminderKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final current = _reminderMinutes ?? _reminderNone;
-    final result = await showMenu<int>(
-      context: context,
-      color: AppColors.elevated,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: const BorderSide(color: AppColors.border),
-      ),
-      position: RelativeRect.fromLTRB(
-        offset.dx,
-        offset.dy + renderBox.size.height + 4,
-        offset.dx + renderBox.size.width,
-        0,
-      ),
-      items: [
-        for (var i = 0; i < options.length; i++)
-          PopupMenuItem<int>(
-            value: options[i],
-            child: Text(
-              labels[i],
-              style: TextStyle(
-                color: current == options[i]
-                    ? AppColors.accent
-                    : AppColors.textPrimary,
-                fontSize: 13,
-              ),
-            ),
-          ),
-      ],
-    );
+    final result = await showReminderMenu(context, _reminderKey, _reminderMinutes);
     if (result != null) {
-      setState(() => _reminderMinutes = result == _reminderNone ? null : result);
+      setState(() => _reminderMinutes = result == noReminder ? null : result);
     }
   }
 
@@ -481,19 +319,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   }
 
   Future<void> _showRecurrenceMenu() async {
-    final result = await showMenu<String>(
-      context: context,
-      position: RelativeRect.fromLTRB(300, 300, 300, 300),
-      initialValue: _recurrence,
-      items: [
-        const PopupMenuItem(value: '', child: Text('Never')),
-        const PopupMenuItem(value: 'daily|1', child: Text('Daily')),
-        const PopupMenuItem(value: 'weekly|1', child: Text('Weekly')),
-        const PopupMenuItem(value: 'weekly|1|weekdays', child: Text('Weekdays')),
-        const PopupMenuItem(value: 'monthly|1', child: Text('Monthly')),
-        const PopupMenuItem(value: 'yearly|1', child: Text('Yearly')),
-      ],
-    );
+    final result = await showRecurrenceMenu(context, _recurrence);
     if (result != null) {
       setState(() => _recurrence = result.isEmpty ? null : result);
     }
@@ -548,58 +374,5 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     }
 
     if (mounted) Navigator.of(context).pop();
-  }
-}
-
-class _SubtaskRow extends StatelessWidget {
-  final String title;
-  final bool isCompleted;
-  final VoidCallback? onToggle;
-  final VoidCallback onDelete;
-
-  const _SubtaskRow({
-    required this.title,
-    required this.isCompleted,
-    required this.onToggle,
-    required this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: onToggle,
-            child: Icon(
-              isCompleted
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              size: 18,
-              color: isCompleted ? AppColors.accent : AppColors.textMuted,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              title,
-              style: AppTypography.bodySmall.copyWith(
-                color: isCompleted ? AppColors.textMuted : AppColors.textSecondary,
-                decoration: isCompleted ? TextDecoration.lineThrough : null,
-              ),
-            ),
-          ),
-          GestureDetector(
-            onTap: onDelete,
-            child: Icon(
-              Icons.close_rounded,
-              size: 16,
-              color: AppColors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

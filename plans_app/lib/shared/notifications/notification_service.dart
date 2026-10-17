@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:alarm/alarm.dart';
 import 'package:flutter/foundation.dart';
@@ -7,34 +6,13 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../../features/tasks/models/task.dart';
 import 'alarm_full_screen_screen.dart';
+import 'alarm_info.dart';
+import 'alarm_info_store.dart';
 import 'reminder_style.dart';
-
-class _AlarmInfo {
-  final String taskId;
-  final String title;
-  final ReminderStyle style;
-  _AlarmInfo(this.taskId, this.title, this.style);
-
-  Map<String, dynamic> toJson() => {
-    'taskId': taskId,
-    'title': title,
-    'style': style.name,
-  };
-
-  static _AlarmInfo fromJson(Map<String, dynamic> json) => _AlarmInfo(
-    json['taskId'] as String,
-    json['title'] as String,
-    ReminderStyle.values.firstWhere(
-      (s) => s.name == json['style'],
-      orElse: () => ReminderStyle.notification,
-    ),
-  );
-}
 
 class NotificationService {
   // flutter_local_notifications used for macOS scheduling + Android permission
@@ -42,9 +20,8 @@ class NotificationService {
   static bool _initialized = false;
 
   static GlobalKey<NavigatorState>? navigatorKey;
-  static final Map<int, _AlarmInfo> _alarmInfos = {};
+  static final _alarmInfoStore = AlarmInfoStore();
   static int? _currentFullScreenAlarmId;
-  static Timer? _saveDebounce;
 
   static Future<void> init() async {
     if (kIsWeb || _initialized) return;
@@ -152,7 +129,7 @@ class NotificationService {
     }
 
     // Restore persisted alarm metadata so full-screen alarms survive app restart.
-    await _loadAlarmInfos();
+    await _alarmInfoStore.load();
 
     Alarm.ringing.listen((alarmSet) async {
       for (final alarm in alarmSet.alarms) {
@@ -160,7 +137,7 @@ class NotificationService {
           debugPrint('NotificationService: already showing full-screen alarm id=${alarm.id} — skip');
           continue;
         }
-        final info = _alarmInfos[alarm.id];
+        final info = _alarmInfoStore.alarmInfos[alarm.id];
         if (info != null && info.style == ReminderStyle.fullScreenAlarm) {
           if (navigatorKey?.currentContext == null) {
             debugPrint('NotificationService: cannot show full-screen alarm — no navigator context');
@@ -184,51 +161,6 @@ class NotificationService {
   }
 
   static void _onResponse(NotificationResponse response) {}
-
-  // ── Alarm info persistence ────────────────────────────────────────────────
-
-  static Future<File> _alarmInfosFile() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File('${dir.path}/_alarm_infos.json');
-  }
-
-  static Future<void> _loadAlarmInfos() async {
-    try {
-      final file = await _alarmInfosFile();
-      if (!file.existsSync()) return;
-      final raw = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-      _alarmInfos.clear();
-      for (final entry in raw.entries) {
-        final id = int.tryParse(entry.key);
-        if (id != null) {
-          _alarmInfos[id] = _AlarmInfo.fromJson(entry.value as Map<String, dynamic>);
-        }
-      }
-      debugPrint('NotificationService: loaded ${_alarmInfos.length} alarm infos');
-    } catch (e, st) {
-      debugPrint('NotificationService._loadAlarmInfos failed: $e\n$st');
-    }
-  }
-
-  static void _scheduleSaveAlarmInfos() {
-    _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(milliseconds: 300), () {
-      unawaited(_saveAlarmInfos());
-    });
-  }
-
-  static Future<void> _saveAlarmInfos() async {
-    if (kIsWeb || Platform.isMacOS) return;
-    try {
-      final file = await _alarmInfosFile();
-      final raw = <String, dynamic>{
-        for (final e in _alarmInfos.entries) '${e.key}': e.value.toJson(),
-      };
-      await file.writeAsString(jsonEncode(raw));
-    } catch (e, st) {
-      debugPrint('NotificationService._saveAlarmInfos failed: $e\n$st');
-    }
-  }
 
   // ── ID helpers ───────────────────────────────────────────────────────────
 
@@ -317,7 +249,7 @@ class NotificationService {
 
     if (secondsPast >= 60 && task.priority == TaskPriority.critical) {
       // Don't reset an already-pending alarm on every app launch.
-      if (_alarmInfos.containsKey(_dueId(task.id))) return;
+      if (_alarmInfoStore.alarmInfos.containsKey(_dueId(task.id))) return;
     }
 
     await cancelForTask(task.id);
@@ -328,7 +260,7 @@ class NotificationService {
 
     final dueStyle = style ?? ReminderStyle.notification;
     final dueId = _dueId(task.id);
-    _alarmInfos[dueId] = _AlarmInfo(task.id, task.title, dueStyle);
+    _alarmInfoStore.alarmInfos[dueId] = AlarmInfo(task.id, task.title, dueStyle);
     await _scheduleNotification(
       id: dueId,
       title: task.title,
@@ -343,7 +275,7 @@ class NotificationService {
         final reminderTime = dueTime.subtract(Duration(minutes: rem));
         if (reminderTime.isAfter(now)) {
           final remId = _reminderId(task.id);
-          _alarmInfos[remId] = _AlarmInfo(task.id, task.title, ReminderStyle.notification);
+          _alarmInfoStore.alarmInfos[remId] = AlarmInfo(task.id, task.title, ReminderStyle.notification);
           await _scheduleNotification(
             id: remId,
             title: task.title,
@@ -355,14 +287,14 @@ class NotificationService {
       }
     }
 
-    if (persist) _scheduleSaveAlarmInfos();
+    if (persist) _alarmInfoStore.scheduleSave();
   }
 
   static Future<void> cancelForTask(String taskId) async {
     if (!_initialized) return;
     _currentFullScreenAlarmId = null;
-    _alarmInfos.remove(_dueId(taskId));
-    _alarmInfos.remove(_reminderId(taskId));
+    _alarmInfoStore.alarmInfos.remove(_dueId(taskId));
+    _alarmInfoStore.alarmInfos.remove(_reminderId(taskId));
     if (Platform.isMacOS) {
       await _fln.cancel(id: _dueId(taskId));
       await _fln.cancel(id: _reminderId(taskId));
@@ -372,7 +304,7 @@ class NotificationService {
       await _fln.cancel(id: _dueId(taskId));
       await _fln.cancel(id: _reminderId(taskId));
     }
-    _scheduleSaveAlarmInfos();
+    _alarmInfoStore.scheduleSave();
   }
 
   static Future<void> snooze({
@@ -384,7 +316,7 @@ class NotificationService {
     if (!_initialized) return;
     _currentFullScreenAlarmId = null;
     final fireAt = DateTime.now().add(Duration(minutes: minutes));
-    _alarmInfos[alarmId] = _AlarmInfo(taskId, taskTitle, ReminderStyle.fullScreenAlarm);
+    _alarmInfoStore.alarmInfos[alarmId] = AlarmInfo(taskId, taskTitle, ReminderStyle.fullScreenAlarm);
     await _scheduleNotification(
       id: alarmId,
       title: taskTitle,
@@ -392,18 +324,18 @@ class NotificationService {
       at: fireAt,
       style: ReminderStyle.fullScreenAlarm,
     );
-    _scheduleSaveAlarmInfos();
+    _alarmInfoStore.scheduleSave();
   }
 
   static Future<void> rescheduleAll(List<Task> tasks) async {
     if (!_initialized) return;
     if (!Platform.isMacOS) {
       _currentFullScreenAlarmId = null;
-      for (final id in _alarmInfos.keys) {
+      for (final id in _alarmInfoStore.alarmInfos.keys) {
         await Alarm.stop(id);
         await _fln.cancel(id: id);
       }
-      _alarmInfos.clear();
+      _alarmInfoStore.alarmInfos.clear();
       await _fln.cancelAll();
     }
     final now = DateTime.now();
@@ -412,7 +344,7 @@ class NotificationService {
         await scheduleForTask(task, style: _styleForPriority(task.priority), persist: false);
       }
     }
-    _scheduleSaveAlarmInfos();
+    _alarmInfoStore.scheduleSave();
   }
 
   static ReminderStyle _styleForPriority(TaskPriority priority) {

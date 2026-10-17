@@ -157,6 +157,75 @@ Future<DateTime?> pickDate(BuildContext context, DateTime? current) async {
   return DateTime(date.year, date.month, date.day, time.hour, time.minute);
 }
 
+/// -1 sentinel for "no reminder" in the reminder-minutes menu below.
+const noReminder = -1;
+
+String reminderLabel(int? minutes) {
+  return switch (minutes) {
+    null => 'Remind',
+    0 => 'At due time',
+    5 => '5 min before',
+    15 => '15 min before',
+    30 => '30 min before',
+    60 => '1 hr before',
+    _ => '$minutes min before',
+  };
+}
+
+Future<int?> showReminderMenu(
+    BuildContext context, GlobalKey anchorKey, int? current) async {
+  const options = [noReminder, 0, 5, 15, 30, 60];
+  const labels = ['None', 'At due time', '5 min before', '15 min before', '30 min before', '1 hr before'];
+  final box = anchorKey.currentContext?.findRenderObject() as RenderBox?;
+  if (box == null) return null;
+  final offset = box.localToGlobal(Offset.zero);
+  final size = box.size;
+  final selected = current ?? noReminder;
+  return showMenu<int>(
+    context: context,
+    color: AppColors.elevated,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(8),
+      side: const BorderSide(color: AppColors.border),
+    ),
+    position: RelativeRect.fromLTRB(
+      offset.dx,
+      offset.dy + size.height + 4,
+      offset.dx + size.width,
+      0,
+    ),
+    items: [
+      for (var i = 0; i < options.length; i++)
+        PopupMenuItem<int>(
+          value: options[i],
+          child: Text(
+            labels[i],
+            style: TextStyle(
+              color: selected == options[i] ? AppColors.accent : AppColors.textPrimary,
+              fontSize: 13,
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+Future<String?> showRecurrenceMenu(BuildContext context, String? current) {
+  return showMenu<String>(
+    context: context,
+    position: const RelativeRect.fromLTRB(300, 300, 300, 300),
+    initialValue: current,
+    items: const [
+      PopupMenuItem(value: '', child: Text('Never')),
+      PopupMenuItem(value: 'daily|1', child: Text('Daily')),
+      PopupMenuItem(value: 'weekly|1', child: Text('Weekly')),
+      PopupMenuItem(value: 'weekly|1|weekdays', child: Text('Weekdays')),
+      PopupMenuItem(value: 'monthly|1', child: Text('Monthly')),
+      PopupMenuItem(value: 'yearly|1', child: Text('Yearly')),
+    ],
+  );
+}
+
 String formatDueDateTime(DateTime dt) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);

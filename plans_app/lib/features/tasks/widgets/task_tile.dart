@@ -4,6 +4,7 @@ import '../models/task.dart';
 import '../providers/task_provider.dart';
 import '../providers/subtask_provider.dart';
 import '../widgets/add_task_sheet.dart';
+import 'subtask_row.dart';
 import '../../../theme/app_animations.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
@@ -502,32 +503,11 @@ class _TaskTileState extends ConsumerState<TaskTile> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final s in subtasks)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => ref.read(subtasksProvider(task.id).notifier).toggle(s.id),
-                    child: Icon(
-                      s.isCompleted
-                          ? Icons.check_circle_rounded
-                          : Icons.radio_button_unchecked_rounded,
-                      size: 16,
-                      color: s.isCompleted ? AppColors.accent : AppColors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.sm),
-                  Expanded(
-                    child: Text(
-                      s.title,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: s.isCompleted ? AppColors.textMuted : AppColors.textSecondary,
-                        decoration: s.isCompleted ? TextDecoration.lineThrough : null,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            SubtaskRow(
+              title: s.title,
+              isCompleted: s.isCompleted,
+              iconSize: 16,
+              onToggle: () => ref.read(subtasksProvider(task.id).notifier).toggle(s.id),
             ),
         ],
       ),
