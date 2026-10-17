@@ -6,9 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:plans_app/src/rust/api.dart' as rust_api;
 import 'package:plans_app/src/rust/api/tasks.dart' as rust_tasks;
 import 'package:plans_app/src/rust/api/projects.dart' as rust_projects;
+import 'package:plans_app/src/rust/api/subtasks.dart' as rust_subtasks;
 import 'package:plans_app/src/rust/models.dart' as rust_models;
 import 'package:plans_app/features/tasks/models/task.dart';
 import 'package:plans_app/features/projects/models/project.dart';
+import 'package:plans_app/features/tasks/models/subtask.dart';
 
 final databaseServiceProvider = Provider<DatabaseService>((ref) {
   throw UnimplementedError('DatabaseService must be overridden in ProviderScope');
@@ -48,9 +50,67 @@ class DatabaseService {
   Future<List<Task>> getTasks() async {
     try {
       final raw = await rust_tasks.getAllTasks();
-      return raw.map(_rustTaskToDomain).toList();
+      final tasks = raw.map(_rustTaskToDomain).toList();
+      final counts = await rust_subtasks.getSubtaskCounts();
+      if (counts.isEmpty) return tasks;
+      final byTaskId = {for (final c in counts) c.taskId: c};
+      return tasks.map((t) {
+        final c = byTaskId[t.id];
+        if (c == null) return t;
+        return t.copyWith(
+          subtaskTotal: c.total.toInt(),
+          subtaskCompleted: c.completed.toInt(),
+        );
+      }).toList();
     } catch (e, st) {
       debugPrint('DatabaseService.getTasks failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<List<Subtask>> getSubtasks(String taskId) async {
+    try {
+      final raw = await rust_subtasks.getSubtasks(taskId: taskId);
+      return raw.map(_rustSubtaskToDomain).toList();
+    } catch (e, st) {
+      debugPrint('DatabaseService.getSubtasks failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<Subtask> insertSubtask(String taskId, String title) async {
+    try {
+      final raw = await rust_subtasks.createSubtask(taskId: taskId, title: title);
+      return _rustSubtaskToDomain(raw);
+    } catch (e, st) {
+      debugPrint('DatabaseService.insertSubtask failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> updateSubtask(Subtask subtask) async {
+    try {
+      final json = jsonEncode({
+        'id': subtask.id,
+        'task_id': subtask.taskId,
+        'title': subtask.title,
+        'is_completed': subtask.isCompleted,
+        'sort_order': subtask.sortOrder,
+        'created_at': subtask.createdAt.millisecondsSinceEpoch,
+        'updated_at': subtask.updatedAt.millisecondsSinceEpoch,
+      });
+      await rust_subtasks.updateSubtask(subtaskJson: json);
+    } catch (e, st) {
+      debugPrint('DatabaseService.updateSubtask failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteSubtask(String id) async {
+    try {
+      await rust_subtasks.deleteSubtask(id: id);
+    } catch (e, st) {
+      debugPrint('DatabaseService.deleteSubtask failed: $e\n$st');
       rethrow;
     }
   }
@@ -254,6 +314,18 @@ class DatabaseService {
       sortOrder: t.sortOrder.toInt(),
       reminderMinutes: t.reminderMinutes?.toInt(),
       recurrence: t.recurrence,
+    );
+  }
+
+  Subtask _rustSubtaskToDomain(rust_models.Subtask s) {
+    return Subtask(
+      id: s.id,
+      taskId: s.taskId,
+      title: s.title,
+      isCompleted: s.isCompleted,
+      sortOrder: s.sortOrder.toInt(),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(s.createdAt),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(s.updatedAt),
     );
   }
 

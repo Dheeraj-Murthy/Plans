@@ -5,6 +5,7 @@
 
 import 'api.dart';
 import 'api/projects.dart';
+import 'api/subtasks.dart';
 import 'api/sync.dart';
 import 'api/tasks.dart';
 import 'dart:async';
@@ -68,7 +69,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1884377990;
+  int get rustContentHash => 1880105206;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -96,6 +97,11 @@ abstract class RustLibApi extends BaseApi {
     required String appVersion,
   });
 
+  Future<Subtask> crateApiSubtasksCreateSubtask({
+    required String taskId,
+    required String title,
+  });
+
   Future<Task> crateApiTasksCreateTask({
     required String title,
     String? description,
@@ -108,6 +114,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiProjectsDeleteProject({required String id});
 
+  Future<void> crateApiSubtasksDeleteSubtask({required String id});
+
   Future<void> crateApiTasksDeleteTask({required String id});
 
   Future<List<Project>> crateApiProjectsGetAllProjects();
@@ -115,6 +123,10 @@ abstract class RustLibApi extends BaseApi {
   Future<List<Task>> crateApiTasksGetAllTasks();
 
   Future<String> crateApiSyncGetOrCreateDeviceId();
+
+  Future<List<SubtaskCount>> crateApiSubtasksGetSubtaskCounts();
+
+  Future<List<Subtask>> crateApiSubtasksGetSubtasks({required String taskId});
 
   Future<String> crateApiSyncGetSyncState();
 
@@ -138,6 +150,8 @@ abstract class RustLibApi extends BaseApi {
     required String name,
     required PlatformInt64 colorIndex,
   });
+
+  Future<Subtask> crateApiSubtasksUpdateSubtask({required String subtaskJson});
 
   Future<Task> crateApiTasksUpdateTask({required String taskJson});
 
@@ -273,6 +287,41 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<Subtask> crateApiSubtasksCreateSubtask({
+    required String taskId,
+    required String title,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(taskId, serializer);
+          sse_encode_String(title, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 4,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_subtask,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSubtasksCreateSubtaskConstMeta,
+        argValues: [taskId, title],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSubtasksCreateSubtaskConstMeta =>
+      const TaskConstMeta(
+        debugName: "create_subtask",
+        argNames: ["taskId", "title"],
+      );
+
+  @override
   Future<Task> crateApiTasksCreateTask({
     required String title,
     String? description,
@@ -296,7 +345,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 5,
             port: port_,
           );
         },
@@ -342,7 +391,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 6,
             port: port_,
           );
         },
@@ -361,6 +410,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "delete_project", argNames: ["id"]);
 
   @override
+  Future<void> crateApiSubtasksDeleteSubtask({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSubtasksDeleteSubtaskConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSubtasksDeleteSubtaskConstMeta =>
+      const TaskConstMeta(debugName: "delete_subtask", argNames: ["id"]);
+
+  @override
   Future<void> crateApiTasksDeleteTask({required String id}) {
     return handler.executeNormal(
       NormalTask(
@@ -370,7 +447,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 8,
             port: port_,
           );
         },
@@ -397,7 +474,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 9,
             port: port_,
           );
         },
@@ -424,7 +501,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 10,
             port: port_,
           );
         },
@@ -451,7 +528,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 11,
             port: port_,
           );
         },
@@ -470,6 +547,61 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_or_create_device_id", argNames: []);
 
   @override
+  Future<List<SubtaskCount>> crateApiSubtasksGetSubtaskCounts() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 12,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_subtask_count,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSubtasksGetSubtaskCountsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSubtasksGetSubtaskCountsConstMeta =>
+      const TaskConstMeta(debugName: "get_subtask_counts", argNames: []);
+
+  @override
+  Future<List<Subtask>> crateApiSubtasksGetSubtasks({required String taskId}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(taskId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_subtask,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSubtasksGetSubtasksConstMeta,
+        argValues: [taskId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSubtasksGetSubtasksConstMeta =>
+      const TaskConstMeta(debugName: "get_subtasks", argNames: ["taskId"]);
+
+  @override
   Future<String> crateApiSyncGetSyncState() {
     return handler.executeNormal(
       NormalTask(
@@ -478,7 +610,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 14,
             port: port_,
           );
         },
@@ -506,7 +638,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 15,
             port: port_,
           );
         },
@@ -542,7 +674,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 16,
             port: port_,
           );
         },
@@ -573,7 +705,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 17,
             port: port_,
           );
         },
@@ -601,7 +733,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 18,
             port: port_,
           );
         },
@@ -629,7 +761,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 19,
             port: port_,
           );
         },
@@ -663,7 +795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 20,
             port: port_,
           );
         },
@@ -685,6 +817,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<Subtask> crateApiSubtasksUpdateSubtask({required String subtaskJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(subtaskJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 21,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_subtask,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiSubtasksUpdateSubtaskConstMeta,
+        argValues: [subtaskJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSubtasksUpdateSubtaskConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_subtask",
+        argNames: ["subtaskJson"],
+      );
+
+  @override
   Future<Task> crateApiTasksUpdateTask({required String taskJson}) {
     return handler.executeNormal(
       NormalTask(
@@ -694,7 +857,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 22,
             port: port_,
           );
         },
@@ -722,7 +885,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 23,
             port: port_,
           );
         },
@@ -753,7 +916,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 24,
             port: port_,
           );
         },
@@ -820,6 +983,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<Subtask> dco_decode_list_subtask(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_subtask).toList();
+  }
+
+  @protected
+  List<SubtaskCount> dco_decode_list_subtask_count(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_subtask_count).toList();
+  }
+
+  @protected
   List<Task> dco_decode_list_task(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_task).toList();
@@ -848,6 +1023,36 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       name: dco_decode_String(arr[1]),
       colorIndex: dco_decode_i_64(arr[2]),
       updatedAt: dco_decode_i_64(arr[3]),
+    );
+  }
+
+  @protected
+  Subtask dco_decode_subtask(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return Subtask(
+      id: dco_decode_String(arr[0]),
+      taskId: dco_decode_String(arr[1]),
+      title: dco_decode_String(arr[2]),
+      isCompleted: dco_decode_bool(arr[3]),
+      sortOrder: dco_decode_i_64(arr[4]),
+      createdAt: dco_decode_i_64(arr[5]),
+      updatedAt: dco_decode_i_64(arr[6]),
+    );
+  }
+
+  @protected
+  SubtaskCount dco_decode_subtask_count(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return SubtaskCount(
+      taskId: dco_decode_String(arr[0]),
+      total: dco_decode_i_64(arr[1]),
+      completed: dco_decode_i_64(arr[2]),
     );
   }
 
@@ -962,6 +1167,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<Subtask> sse_decode_list_subtask(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <Subtask>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_subtask(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SubtaskCount> sse_decode_list_subtask_count(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SubtaskCount>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_subtask_count(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<Task> sse_decode_list_task(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -1003,10 +1234,45 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_colorIndex = sse_decode_i_64(deserializer);
     var var_updatedAt = sse_decode_i_64(deserializer);
     return Project(
-        id: var_id,
-        name: var_name,
-        colorIndex: var_colorIndex,
-        updatedAt: var_updatedAt);
+      id: var_id,
+      name: var_name,
+      colorIndex: var_colorIndex,
+      updatedAt: var_updatedAt,
+    );
+  }
+
+  @protected
+  Subtask sse_decode_subtask(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_taskId = sse_decode_String(deserializer);
+    var var_title = sse_decode_String(deserializer);
+    var var_isCompleted = sse_decode_bool(deserializer);
+    var var_sortOrder = sse_decode_i_64(deserializer);
+    var var_createdAt = sse_decode_i_64(deserializer);
+    var var_updatedAt = sse_decode_i_64(deserializer);
+    return Subtask(
+      id: var_id,
+      taskId: var_taskId,
+      title: var_title,
+      isCompleted: var_isCompleted,
+      sortOrder: var_sortOrder,
+      createdAt: var_createdAt,
+      updatedAt: var_updatedAt,
+    );
+  }
+
+  @protected
+  SubtaskCount sse_decode_subtask_count(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_taskId = sse_decode_String(deserializer);
+    var var_total = sse_decode_i_64(deserializer);
+    var var_completed = sse_decode_i_64(deserializer);
+    return SubtaskCount(
+      taskId: var_taskId,
+      total: var_total,
+      completed: var_completed,
+    );
   }
 
   @protected
@@ -1140,6 +1406,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_subtask(List<Subtask> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_subtask(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_subtask_count(
+    List<SubtaskCount> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_subtask_count(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_task(List<Task> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
@@ -1178,6 +1465,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.name, serializer);
     sse_encode_i_64(self.colorIndex, serializer);
     sse_encode_i_64(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_subtask(Subtask self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.taskId, serializer);
+    sse_encode_String(self.title, serializer);
+    sse_encode_bool(self.isCompleted, serializer);
+    sse_encode_i_64(self.sortOrder, serializer);
+    sse_encode_i_64(self.createdAt, serializer);
+    sse_encode_i_64(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_subtask_count(SubtaskCount self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.taskId, serializer);
+    sse_encode_i_64(self.total, serializer);
+    sse_encode_i_64(self.completed, serializer);
   }
 
   @protected

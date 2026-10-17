@@ -31,8 +31,9 @@ Future<Project> updateProject({
 Future<void> deleteProject({required String id}) =>
     RustLib.instance.api.crateApiProjectsDeleteProject(id: id);
 
-/// Upsert a project from local state into the current DB.
-/// Inserts if absent; updates name/color_index if present without touching is_deleted.
+/// Last-write-wins upsert by updated_at, mirroring upsert_task. Used when
+/// merging local data after installing a remote snapshot — preserves
+/// whichever version is newer and never resurrects a deleted project.
 Future<void> upsertProject({required String projectJson}) => RustLib
     .instance
     .api

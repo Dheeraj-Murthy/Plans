@@ -16,6 +16,8 @@ class Task {
   final int sortOrder;
   final int? reminderMinutes;
   final String? recurrence;
+  final int subtaskTotal;
+  final int subtaskCompleted;
 
   Task({
     required this.id,
@@ -31,6 +33,8 @@ class Task {
     this.sortOrder = 0,
     this.reminderMinutes,
     this.recurrence,
+    this.subtaskTotal = 0,
+    this.subtaskCompleted = 0,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -48,6 +52,8 @@ class Task {
     DateTime? createdAt,
     DateTime? updatedAt,
     int? sortOrder,
+    int? subtaskTotal,
+    int? subtaskCompleted,
   }) {
     return Task(
       id: id ?? this.id,
@@ -63,6 +69,8 @@ class Task {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
       sortOrder: sortOrder ?? this.sortOrder,
+      subtaskTotal: subtaskTotal ?? this.subtaskTotal,
+      subtaskCompleted: subtaskCompleted ?? this.subtaskCompleted,
     );
   }
 }

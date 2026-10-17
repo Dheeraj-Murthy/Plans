@@ -28,3 +28,21 @@ pub struct Project {
     #[serde(default)]
     pub updated_at: i64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Subtask {
+    pub id: String,
+    pub task_id: String,
+    pub title: String,
+    pub is_completed: bool,
+    pub sort_order: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubtaskCount {
+    pub task_id: String,
+    pub total: i64,
+    pub completed: i64,
+}

@@ -1,16 +1,45 @@
 import 'package:plans_app/features/projects/models/project.dart';
 import 'package:plans_app/features/tasks/models/task.dart';
+import 'package:plans_app/features/tasks/models/subtask.dart';
 import 'package:plans_app/shared/database/database_service.dart';
 import 'package:uuid/uuid.dart';
 
 class FakeDatabaseService extends DatabaseService {
   final List<Task> _tasks = [];
   final List<Project> _projects = [];
+  final List<Subtask> _subtasks = [];
 
   void seedProject(Project p) => _projects.add(p);
 
   @override
   Future<List<Task>> getTasks() async => List.from(_tasks);
+
+  @override
+  Future<List<Subtask>> getSubtasks(String taskId) async =>
+      _subtasks.where((s) => s.taskId == taskId).toList();
+
+  @override
+  Future<Subtask> insertSubtask(String taskId, String title) async {
+    final subtask = Subtask(
+      id: const Uuid().v4(),
+      taskId: taskId,
+      title: title,
+      sortOrder: _subtasks.where((s) => s.taskId == taskId).length,
+    );
+    _subtasks.add(subtask);
+    return subtask;
+  }
+
+  @override
+  Future<void> updateSubtask(Subtask subtask) async {
+    final idx = _subtasks.indexWhere((s) => s.id == subtask.id);
+    if (idx >= 0) _subtasks[idx] = subtask;
+  }
+
+  @override
+  Future<void> deleteSubtask(String id) async {
+    _subtasks.removeWhere((s) => s.id == id);
+  }
 
   @override
   Future<List<Project>> getProjects() async => List.from(_projects);

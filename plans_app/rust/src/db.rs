@@ -58,6 +58,19 @@ fn run_migrations(conn: &Connection) -> Result<(), AppError> {
         .ok();
     conn.execute_batch("ALTER TABLE projects ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;")
         .ok();
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS subtasks (
+            id TEXT PRIMARY KEY,
+            task_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            is_completed INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);",
+    )
+    .ok();
     // IF NOT EXISTS / INSERT OR IGNORE — safe to discard result.
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS sync_state (

@@ -197,6 +197,19 @@ class TasksNotifier extends Notifier<List<Task>> {
     });
   }
 
+  // Called by SubtasksNotifier after any add/toggle/remove so the task
+  // list's "n/m" progress chip stays in sync without a full reload.
+  void patchSubtaskCounts(String taskId, int total, int completed) {
+    final idx = state.indexWhere((t) => t.id == taskId);
+    if (idx == -1) return;
+    final newState = List<Task>.of(state);
+    newState[idx] = newState[idx].copyWith(
+      subtaskTotal: total,
+      subtaskCompleted: completed,
+    );
+    state = newState;
+  }
+
   void _load() {
     unawaited(
       _db.getTasks().then((tasks) async {

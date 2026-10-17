@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../providers/subtask_provider.dart';
 import '../widgets/add_task_sheet.dart';
 import '../../../theme/app_animations.dart';
 import '../../../theme/app_spacing.dart';
@@ -36,6 +37,7 @@ class TaskTile extends ConsumerStatefulWidget {
 class _TaskTileState extends ConsumerState<TaskTile> {
   bool _isHovered = false;
   bool _isPressed = false;
+  bool _expanded = false;
 
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -353,6 +355,44 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                           ),
                         ),
 
+                      // Subtask progress chip
+                      if (task.subtaskTotal > 0 && !task.isCompleted)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: GestureDetector(
+                            onTap: () => setState(() => _expanded = !_expanded),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '${task.subtaskCompleted}/${task.subtaskTotal}',
+                                    style: AppTypography.label.copyWith(
+                                      fontSize: 11,
+                                      color: AppColors.textMuted,
+                                    ),
+                                  ),
+                                  Icon(
+                                    _expanded
+                                        ? Icons.expand_less_rounded
+                                        : Icons.expand_more_rounded,
+                                    size: 14,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+
                       // Due date pill
                       if (task.dueDate != null && !task.isCompleted)
                         AnimatedOpacity(
@@ -442,6 +482,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                 ],
               ),
             ),
+            if (_expanded && task.subtaskTotal > 0) _buildExpandedSubtasks(task),
             const Divider(
               height: 1,
               thickness: 0.5,
@@ -451,6 +492,46 @@ class _TaskTileState extends ConsumerState<TaskTile> {
         ),
         ),
       );
+  }
+
+  Widget _buildExpandedSubtasks(Task task) {
+    final subtasks = ref.watch(subtasksProvider(task.id));
+    return Padding(
+      padding: const EdgeInsets.only(left: 36, right: 8, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final s in subtasks)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => ref.read(subtasksProvider(task.id).notifier).toggle(s.id),
+                    child: Icon(
+                      s.isCompleted
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 16,
+                      color: s.isCompleted ? AppColors.accent : AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      s.title,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: s.isCompleted ? AppColors.textMuted : AppColors.textSecondary,
+                        decoration: s.isCompleted ? TextDecoration.lineThrough : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 

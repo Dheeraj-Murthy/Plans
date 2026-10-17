@@ -34,6 +34,73 @@ class Project {
           updatedAt == other.updatedAt;
 }
 
+class Subtask {
+  final String id;
+  final String taskId;
+  final String title;
+  final bool isCompleted;
+  final PlatformInt64 sortOrder;
+  final PlatformInt64 createdAt;
+  final PlatformInt64 updatedAt;
+
+  const Subtask({
+    required this.id,
+    required this.taskId,
+    required this.title,
+    required this.isCompleted,
+    required this.sortOrder,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      taskId.hashCode ^
+      title.hashCode ^
+      isCompleted.hashCode ^
+      sortOrder.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Subtask &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          taskId == other.taskId &&
+          title == other.title &&
+          isCompleted == other.isCompleted &&
+          sortOrder == other.sortOrder &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt;
+}
+
+class SubtaskCount {
+  final String taskId;
+  final PlatformInt64 total;
+  final PlatformInt64 completed;
+
+  const SubtaskCount({
+    required this.taskId,
+    required this.total,
+    required this.completed,
+  });
+
+  @override
+  int get hashCode => taskId.hashCode ^ total.hashCode ^ completed.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SubtaskCount &&
+          runtimeType == other.runtimeType &&
+          taskId == other.taskId &&
+          total == other.total &&
+          completed == other.completed;
+}
+
 class Task {
   final String id;
   final String title;

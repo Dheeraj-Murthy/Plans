@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/task.dart';
 import '../providers/task_provider.dart';
+import '../providers/subtask_provider.dart';
 import '../../../shared/widgets/app_chip.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
@@ -34,6 +35,14 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   final _projectKey = GlobalKey();
   final _reminderKey = GlobalKey();
   final _titleFocusNode = FocusNode();
+  final _newSubtaskController = TextEditingController();
+  final _subtaskFocusNode = FocusNode();
+  // Staged subtask titles for a task that doesn't exist yet — flushed to
+  // real subtasks in _submit() once addTask() returns the new task's id.
+  final List<String> _stagedSubtasks = [];
+  // Collapsed behind a "+ Add subtask" button by default — only expanded
+  // up front when the task already has subtasks to show.
+  late bool _subtasksExpanded;
 
   @override
   void initState() {
@@ -46,6 +55,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     _priority = task?.priority ?? TaskPriority.none;
     _reminderMinutes = task?.reminderMinutes;
     _recurrence = task?.recurrence;
+    _subtasksExpanded = (task?.subtaskTotal ?? 0) > 0;
 
     if (task != null) {
       final projects = ref.read(projectsProvider);
@@ -69,6 +79,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     _titleController.dispose();
     _descriptionController.dispose();
     _titleFocusNode.dispose();
+    _newSubtaskController.dispose();
+    _subtaskFocusNode.dispose();
     super.dispose();
   }
 
@@ -276,15 +288,121 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                     contentPadding: EdgeInsets.zero,
                   ),
                   maxLines: null,
-                  minLines: 3,
+                  minLines: 1,
                 ),
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(
+            color: AppColors.border,
+            height: 1,
+            thickness: 1,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _buildSubtasksSection(),
         ],
       ),
     ),
   );
+  }
+
+  Widget _buildSubtasksSection() {
+    if (!_subtasksExpanded) {
+      return GestureDetector(
+        onTap: () {
+          setState(() => _subtasksExpanded = true);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _subtaskFocusNode.requestFocus();
+          });
+        },
+        child: Row(
+          children: [
+            Icon(Icons.add_rounded, size: 18, color: AppColors.textMuted),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              'Add subtask',
+              style: AppTypography.label.copyWith(color: AppColors.textMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final rows = <Widget>[];
+
+    if (_isEditing) {
+      final subtasks = ref.watch(subtasksProvider(widget.existingTask!.id));
+      for (final s in subtasks) {
+        rows.add(_SubtaskRow(
+          title: s.title,
+          isCompleted: s.isCompleted,
+          onToggle: () => ref
+              .read(subtasksProvider(widget.existingTask!.id).notifier)
+              .toggle(s.id),
+          onDelete: () => ref
+              .read(subtasksProvider(widget.existingTask!.id).notifier)
+              .remove(s.id),
+        ));
+      }
+    } else {
+      for (var i = 0; i < _stagedSubtasks.length; i++) {
+        final title = _stagedSubtasks[i];
+        rows.add(_SubtaskRow(
+          title: title,
+          isCompleted: false,
+          onToggle: null,
+          onDelete: () => setState(() => _stagedSubtasks.removeAt(i)),
+        ));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.checklist_rounded, size: 20, color: AppColors.textMuted),
+            const SizedBox(width: AppSpacing.sm),
+            Text('Subtasks', style: AppTypography.label.copyWith(color: AppColors.textMuted)),
+          ],
+        ),
+        if (rows.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          ...rows,
+        ],
+        const SizedBox(height: AppSpacing.sm),
+        Padding(
+          padding: const EdgeInsets.only(left: 28),
+          child: TextField(
+            controller: _newSubtaskController,
+            focusNode: _subtaskFocusNode,
+            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            decoration: InputDecoration(
+              hintText: 'Add subtask...',
+              hintStyle: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            onSubmitted: _addSubtask,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _addSubtask(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return;
+    if (_isEditing) {
+      ref.read(subtasksProvider(widget.existingTask!.id).notifier).add(trimmed);
+    } else {
+      setState(() => _stagedSubtasks.add(trimmed));
+    }
+    _newSubtaskController.clear();
   }
 
   String get _reminderLabel {
@@ -415,7 +533,7 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         ),
       );
     } else {
-      await notifier.addTask(
+      final newTask = await notifier.addTask(
         title: effectiveTitle,
         description: desc.isNotEmpty ? desc : null,
         dueDate: effectiveDueDate,
@@ -424,8 +542,64 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         reminderMinutes: effectiveReminder,
         recurrence: parsed.recurrence ?? _recurrence,
       );
+      for (final title in _stagedSubtasks) {
+        await ref.read(subtasksProvider(newTask.id).notifier).add(title);
+      }
     }
 
     if (mounted) Navigator.of(context).pop();
+  }
+}
+
+class _SubtaskRow extends StatelessWidget {
+  final String title;
+  final bool isCompleted;
+  final VoidCallback? onToggle;
+  final VoidCallback onDelete;
+
+  const _SubtaskRow({
+    required this.title,
+    required this.isCompleted,
+    required this.onToggle,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: onToggle,
+            child: Icon(
+              isCompleted
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 18,
+              color: isCompleted ? AppColors.accent : AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              title,
+              style: AppTypography.bodySmall.copyWith(
+                color: isCompleted ? AppColors.textMuted : AppColors.textSecondary,
+                decoration: isCompleted ? TextDecoration.lineThrough : null,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onDelete,
+            child: Icon(
+              Icons.close_rounded,
+              size: 16,
+              color: AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

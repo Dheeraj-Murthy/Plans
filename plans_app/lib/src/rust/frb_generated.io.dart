@@ -5,6 +5,7 @@
 
 import 'api.dart';
 import 'api/projects.dart';
+import 'api/subtasks.dart';
 import 'api/sync.dart';
 import 'api/tasks.dart';
 import 'dart:async';
@@ -47,6 +48,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Project> dco_decode_list_project(dynamic raw);
 
   @protected
+  List<Subtask> dco_decode_list_subtask(dynamic raw);
+
+  @protected
+  List<SubtaskCount> dco_decode_list_subtask_count(dynamic raw);
+
+  @protected
   List<Task> dco_decode_list_task(dynamic raw);
 
   @protected
@@ -57,6 +64,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Project dco_decode_project(dynamic raw);
+
+  @protected
+  Subtask dco_decode_subtask(dynamic raw);
+
+  @protected
+  SubtaskCount dco_decode_subtask_count(dynamic raw);
 
   @protected
   SyncSnapshotResult dco_decode_sync_snapshot_result(dynamic raw);
@@ -95,6 +108,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<Project> sse_decode_list_project(SseDeserializer deserializer);
 
   @protected
+  List<Subtask> sse_decode_list_subtask(SseDeserializer deserializer);
+
+  @protected
+  List<SubtaskCount> sse_decode_list_subtask_count(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<Task> sse_decode_list_task(SseDeserializer deserializer);
 
   @protected
@@ -105,6 +126,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Project sse_decode_project(SseDeserializer deserializer);
+
+  @protected
+  Subtask sse_decode_subtask(SseDeserializer deserializer);
+
+  @protected
+  SubtaskCount sse_decode_subtask_count(SseDeserializer deserializer);
 
   @protected
   SyncSnapshotResult sse_decode_sync_snapshot_result(
@@ -154,6 +181,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_project(List<Project> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_subtask(List<Subtask> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_subtask_count(
+    List<SubtaskCount> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_task(List<Task> self, SseSerializer serializer);
 
   @protected
@@ -167,6 +203,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_project(Project self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_subtask(Subtask self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_subtask_count(SubtaskCount self, SseSerializer serializer);
 
   @protected
   void sse_encode_sync_snapshot_result(
