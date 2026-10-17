@@ -24,7 +24,7 @@ class TaskHighlighter {
     r'(?:^|\s)(p[01234]|!(?:critical|high|medium|low|none))(?=\s|$)',
     caseSensitive: false,
   );
-  static final _projectRe = RegExp(r'@(\w+)', caseSensitive: false);
+  static final _projectRe = RegExp(r'(?:^|\s)@(\w+)', caseSensitive: false);
   static final _dateRe = RegExp(
     r'\b(?:'
     r'today|tod|tomorrow|tom|tmr|tmw|2moro|2morrow|'
@@ -51,7 +51,7 @@ class TaskHighlighter {
     caseSensitive: false,
   );
   static final _timeRe = RegExp(
-    r'(?:at\s+)?\b(\d{1,2})([:.](\d{1,2}))?\s*(am|pm)?\b',
+    r'(?:at\s+)?\b(\d{1,2})(?:([:.])(\d{1,2}))?\s*(am|pm)?\b',
     caseSensitive: false,
   );
 
@@ -77,12 +77,18 @@ class TaskHighlighter {
       var s = m.start;
       var e = m.end;
 
-      // Priority regex (?:^|\s) consumes leading space; skip it
+      // Priority/project regexes' (?:^|\s) consumes a leading space; skip it
+      // so only the tag itself (p1, @word) is highlighted.
       if (identical(re, _priorityRe)) {
         final g0 = m.group(0)!;
         final g1 = m.group(1)!;
         s = m.start + (g0.length - g1.length);
         e = s + g1.length;
+      } else if (identical(re, _projectRe)) {
+        final g0 = m.group(0)!;
+        final tagLen = m.group(1)!.length + 1; // '@' + word
+        s = m.start + (g0.length - tagLen);
+        e = s + tagLen;
       }
 
       if (tokens.any((t) => t.overlaps(s, e))) continue;
@@ -91,8 +97,10 @@ class TaskHighlighter {
       if (identical(re, _timeRe)) {
         final full = m.group(0)!.toLowerCase();
         final hasAt = full.startsWith('at ');
-        final hasMinute = m.group(2) != null;
+        final separator = m.group(2);
+        final hasMinute = m.group(3) != null;
         final hasAmPm = m.group(4) != null;
+        if (separator == '.' && !hasAt && !hasAmPm) continue;
         if (!hasAt && !hasMinute && !hasAmPm) continue;
       }
 

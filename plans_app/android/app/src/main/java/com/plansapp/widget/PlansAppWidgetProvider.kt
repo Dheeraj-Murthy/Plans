@@ -192,9 +192,10 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             views.setOnClickPendingIntent(R.id.iv_header_dot, rootPi)
             views.setOnClickPendingIntent(R.id.v_header_spacer, rootPi)
 
-            val addIntent = Intent(context, com.plansapp.MainActivity::class.java).apply {
-                action = "es.antonborri.home_widget.action.LAUNCH"
-                putExtra("action", "add_task")
+            // QuickAddActivity, not MainActivity — shows just the composer
+            // floating over the homescreen instead of opening the full app.
+            val addIntent = Intent(context, com.plansapp.QuickAddActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             val addPi = PendingIntent.getActivity(
                 context, widgetId * 100 + 1, addIntent,

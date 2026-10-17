@@ -808,10 +808,12 @@ impl SseDecode for crate::models::Project {
         let mut var_id = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_colorIndex = <i64>::sse_decode(deserializer);
+        let mut var_updatedAt = <i64>::sse_decode(deserializer);
         return crate::models::Project {
             id: var_id,
             name: var_name,
             color_index: var_colorIndex,
+            updated_at: var_updatedAt,
         };
     }
 }
@@ -936,6 +938,7 @@ impl flutter_rust_bridge::IntoDart for crate::models::Project {
             self.id.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
             self.color_index.into_into_dart().into_dart(),
+            self.updated_at.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1082,6 +1085,7 @@ impl SseEncode for crate::models::Project {
         <String>::sse_encode(self.id, serializer);
         <String>::sse_encode(self.name, serializer);
         <i64>::sse_encode(self.color_index, serializer);
+        <i64>::sse_encode(self.updated_at, serializer);
     }
 }
 

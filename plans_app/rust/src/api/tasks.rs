@@ -82,12 +82,15 @@ pub fn update_task(task_json: String) -> Result<Task, String> {
 
 pub fn reorder_tasks(task_ids: Vec<String>) -> Result<(), String> {
     db::with_db(|conn| {
+        let tx = conn.unchecked_transaction()?;
+        let now = chrono::Utc::now().timestamp_millis();
         for (i, id) in task_ids.iter().enumerate() {
-            conn.execute(
+            tx.execute(
                 "UPDATE tasks SET sort_order=?1, updated_at=?2 WHERE id=?3",
-                rusqlite::params![i as i64, chrono::Utc::now().timestamp_millis(), id],
+                rusqlite::params![i as i64, now, id],
             )?;
         }
+        tx.commit()?;
         Ok(())
     })
 }
@@ -152,4 +155,52 @@ pub fn upsert_task(task_json: String) -> Result<(), String> {
         )?;
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::test_support::init_test_db;
+
+    #[test]
+    fn reorder_tasks_applies_requested_order() {
+        let _db = init_test_db();
+        let a = create_task("A".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
+        let b = create_task("B".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
+        let c = create_task("C".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
+
+        reorder_tasks(vec![c.id.clone(), a.id.clone(), b.id.clone()]).unwrap();
+
+        let tasks = get_all_tasks().unwrap();
+        let ids: Vec<&str> = tasks.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec![c.id.as_str(), a.id.as_str(), b.id.as_str()]);
+    }
+
+    #[test]
+    fn upsert_task_is_last_write_wins() {
+        let _db = init_test_db();
+        let created = create_task("Original".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
+
+        let stale = serde_json::json!({
+            "id": created.id, "title": "Stale", "description": null, "due_date": null,
+            "priority": 0, "is_completed": false, "is_deleted": false,
+            "project_id": "default", "created_at": created.created_at,
+            "updated_at": created.updated_at - 10_000, "sort_order": 0,
+            "reminder_minutes": null, "recurrence": null,
+        });
+        upsert_task(stale.to_string()).unwrap();
+        let after_stale = get_all_tasks().unwrap().into_iter().find(|t| t.id == created.id).unwrap();
+        assert_eq!(after_stale.title, "Original");
+
+        let fresh = serde_json::json!({
+            "id": created.id, "title": "Fresh", "description": null, "due_date": null,
+            "priority": 0, "is_completed": false, "is_deleted": false,
+            "project_id": "default", "created_at": created.created_at,
+            "updated_at": created.updated_at + 10_000, "sort_order": 0,
+            "reminder_minutes": null, "recurrence": null,
+        });
+        upsert_task(fresh.to_string()).unwrap();
+        let after_fresh = get_all_tasks().unwrap().into_iter().find(|t| t.id == created.id).unwrap();
+        assert_eq!(after_fresh.title, "Fresh");
+    }
 }

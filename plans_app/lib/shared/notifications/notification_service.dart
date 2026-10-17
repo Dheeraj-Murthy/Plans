@@ -433,13 +433,23 @@ class NotificationService {
     if (Platform.isMacOS) {
       await _scheduleMacOS(id: id, title: title, body: body, at: at);
     } else if (style == ReminderStyle.fullScreenAlarm) {
-      await _scheduleAlarm(
+      final alarmOk = await _scheduleAlarm(
         id: id,
         title: title,
         body: body,
         at: at,
         style: style,
       );
+      // Reliability fallback: only when Alarm.set() actually failed — not a
+      // second notification on top of a working alarm.
+      if (!alarmOk) {
+        await _scheduleAndroidNotification(
+          id: id,
+          title: title,
+          body: body,
+          at: at,
+        );
+      }
     } else {
       await _scheduleAndroidNotification(
         id: id,
@@ -481,7 +491,7 @@ class NotificationService {
     }
   }
 
-  static Future<void> _scheduleAlarm({
+  static Future<bool> _scheduleAlarm({
     required int id,
     required String title,
     required String body,
@@ -508,8 +518,10 @@ class NotificationService {
         ),
       );
       debugPrint('NotificationService: alarm set id=$id "$title" at $at');
+      return true;
     } catch (e, st) {
       debugPrint('NotificationService._scheduleAlarm failed: $e\n$st');
+      return false;
     }
   }
 

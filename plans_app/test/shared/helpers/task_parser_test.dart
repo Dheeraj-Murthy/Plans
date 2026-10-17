@@ -94,6 +94,12 @@ void main() {
       // "@ work" is two tokens, not @word
       expect(r.projectId, isNull);
     });
+
+    test('mid-word @ inside an email-like token is not a project tag', () {
+      final r = TaskParser.parse('email john@work about the deploy', projects, now: now);
+      expect(r.projectId, isNull);
+      expect(r.title, 'email john@work about the deploy');
+    });
   });
 
   group('Time — explicit am/pm', () {
@@ -168,6 +174,19 @@ void main() {
       final r = TaskParser.parse('at 12', projects, now: afternoon);
       expect(r.dueDate!.day, 20);
       expect(r.dueDate!.hour, 12);
+    });
+
+    test('literal 24h hour (20) already past → tomorrow 20:00, not 08:00', () {
+      final late = DateTime(2026, 5, 19, 21, 0);
+      final r = TaskParser.parse('at 20', projects, now: late);
+      expect(r.dueDate!.day, 20);
+      expect(r.dueDate!.hour, 20);
+    });
+
+    test('literal 24h hour (20) still ahead → today 20:00', () {
+      final r = TaskParser.parse('at 20', projects, now: now); // now is 14:30
+      expect(r.dueDate!.day, now.day);
+      expect(r.dueDate!.hour, 20);
     });
   });
 

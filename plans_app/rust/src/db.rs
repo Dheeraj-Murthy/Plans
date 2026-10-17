@@ -56,6 +56,8 @@ fn run_migrations(conn: &Connection) -> Result<(), AppError> {
         .ok();
     conn.execute_batch("ALTER TABLE tasks ADD COLUMN recurrence TEXT;")
         .ok();
+    conn.execute_batch("ALTER TABLE projects ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;")
+        .ok();
     // IF NOT EXISTS / INSERT OR IGNORE — safe to discard result.
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS sync_state (
@@ -107,4 +109,25 @@ where
     let guard = DB.lock().map_err(|e| AppError::Lock(e.to_string()).to_string())?;
     let conn = guard.as_ref().ok_or_else(|| AppError::NotInitialized.to_string())?;
     f(conn).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+    use std::sync::Mutex as StdMutex;
+
+    // `DB` is a single process-global connection, so tests that each call
+    // `init_db` must not run concurrently with one another.
+    static TEST_LOCK: StdMutex<()> = StdMutex::new(());
+
+    /// Points the global DB at a fresh temp-file database and returns both
+    /// the lock guard (held for the test's lifetime) and the TempDir (keep
+    /// it alive so the file isn't deleted mid-test).
+    pub(crate) fn init_test_db() -> (std::sync::MutexGuard<'static, ()>, tempfile::TempDir) {
+        let guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.db");
+        init_db(path.to_str().unwrap()).unwrap();
+        (guard, dir)
+    }
 }

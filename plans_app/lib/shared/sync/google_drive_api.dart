@@ -6,6 +6,9 @@ import 'package:http/http.dart' as http;
 
 class GoogleDriveApi {
   static const _appDataScope = 'https://www.googleapis.com/auth/drive.appdata';
+  // Without a timeout a stalled request hangs the sync pipeline forever:
+  // `_isSyncing` never clears, so every later sync attempt silently no-ops.
+  static const _networkTimeout = Duration(seconds: 20);
 
   final GoogleSignIn _signIn;
   final FlutterSecureStorage _secureStorage;
@@ -53,7 +56,7 @@ class GoogleDriveApi {
   }
 
   Future<Map<String, String>> _authHeaders() async {
-    final auth = await _account!.authentication;
+    final auth = await _account!.authentication.timeout(_networkTimeout);
     final token = auth.accessToken;
     if (token == null) throw Exception('No access token available');
     return {'Authorization': 'Bearer $token'};
@@ -65,7 +68,7 @@ class GoogleDriveApi {
       'q': "name='$fileName'",
       'fields': 'files(id)',
     });
-    final resp = await http.get(uri, headers: headers);
+    final resp = await http.get(uri, headers: headers).timeout(_networkTimeout);
     if (resp.statusCode != 200) return null;
     final files = jsonDecode(resp.body)['files'] as List?;
     return files?.isNotEmpty == true ? files![0]['id'] as String : null;
@@ -76,7 +79,7 @@ class GoogleDriveApi {
     final body = jsonEncode({'name': fileName, 'parents': ['appDataFolder']});
     final resp = await http.post(uri, headers: {
       ...headers, 'Content-Type': 'application/json',
-    }, body: body);
+    }, body: body).timeout(_networkTimeout);
     if (resp.statusCode != 200) throw Exception('Create file failed: ${resp.statusCode}');
     return jsonDecode(resp.body)['id'] as String;
   }
@@ -91,7 +94,7 @@ class GoogleDriveApi {
     if (fileId == null) return null;
     final uri = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId')
         .replace(queryParameters: {'alt': 'media'});
-    final resp = await http.get(uri, headers: headers);
+    final resp = await http.get(uri, headers: headers).timeout(_networkTimeout);
     if (resp.statusCode != 200) return null;
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
@@ -103,17 +106,23 @@ class GoogleDriveApi {
     final snapshotFileId = await _findOrCreateFile('plans_snapshot.enc', headers);
     final snapshotUri = Uri.parse('https://www.googleapis.com/upload/drive/v3/files/$snapshotFileId')
         .replace(queryParameters: {'uploadType': 'media'});
-    await http.patch(snapshotUri, headers: {
+    final snapshotResp = await http.patch(snapshotUri, headers: {
       ...headers, 'Content-Type': 'application/octet-stream',
-    }, body: encryptedBytes);
+    }, body: encryptedBytes).timeout(_networkTimeout);
+    if (snapshotResp.statusCode != 200) {
+      throw Exception('Snapshot upload failed: ${snapshotResp.statusCode}');
+    }
 
     // Manifest JSON last (atomic commit pointer)
     final manifestFileId = await _findOrCreateFile('plans_manifest.json', headers);
     final manifestUri = Uri.parse('https://www.googleapis.com/upload/drive/v3/files/$manifestFileId')
         .replace(queryParameters: {'uploadType': 'media'});
-    await http.patch(manifestUri, headers: {
+    final manifestResp = await http.patch(manifestUri, headers: {
       ...headers, 'Content-Type': 'application/json; charset=UTF-8',
-    }, body: jsonEncode(manifest));
+    }, body: jsonEncode(manifest)).timeout(_networkTimeout);
+    if (manifestResp.statusCode != 200) {
+      throw Exception('Manifest upload failed: ${manifestResp.statusCode}');
+    }
   }
 
   Future<Uint8List> downloadSnapshot() async {
@@ -122,7 +131,7 @@ class GoogleDriveApi {
     if (fileId == null) throw Exception('No snapshot on Drive');
     final uri = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId')
         .replace(queryParameters: {'alt': 'media'});
-    final resp = await http.get(uri, headers: headers);
+    final resp = await http.get(uri, headers: headers).timeout(_networkTimeout);
     if (resp.statusCode != 200) throw Exception('Download failed: ${resp.statusCode}');
     return resp.bodyBytes;
   }

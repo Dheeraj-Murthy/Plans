@@ -10,15 +10,18 @@ class Project {
   final String id;
   final String name;
   final PlatformInt64 colorIndex;
+  final PlatformInt64 updatedAt;
 
   const Project({
     required this.id,
     required this.name,
     required this.colorIndex,
+    required this.updatedAt,
   });
 
   @override
-  int get hashCode => id.hashCode ^ name.hashCode ^ colorIndex.hashCode;
+  int get hashCode =>
+      id.hashCode ^ name.hashCode ^ colorIndex.hashCode ^ updatedAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -27,7 +30,8 @@ class Project {
           runtimeType == other.runtimeType &&
           id == other.id &&
           name == other.name &&
-          colorIndex == other.colorIndex;
+          colorIndex == other.colorIndex &&
+          updatedAt == other.updatedAt;
 }
 
 class Task {

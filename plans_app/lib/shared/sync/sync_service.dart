@@ -67,7 +67,21 @@ class SyncService extends Notifier<SyncStatus> {
     }
   }
 
+  static const _signOutWaitCap = Duration(seconds: 10);
+
   Future<void> signOut() async {
+    // Wait out any in-flight sync — it holds a reference to the Drive
+    // account and would null-check-crash if signed out from under it. Capped
+    // so a stuck sync (network calls now time out, but several can still
+    // chain sequentially) can't block sign-out indefinitely; the user asked
+    // to sign out, so proceed anyway past the cap.
+    final deadline = DateTime.now().add(_signOutWaitCap);
+    while (_isSyncing && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    if (_isSyncing) {
+      debugPrint('SyncService.signOut: proceeding past $_signOutWaitCap wait cap, sync still in flight');
+    }
     try {
       await _driveApi.signOut();
     } catch (_) {
@@ -104,7 +118,13 @@ class SyncService extends Notifier<SyncStatus> {
 
   Future<void> _uploadIfNeeded() async {
     if (!_dirty) return;
-    if (DateTime.now().difference(_lastUploadTime) < _minInterval) return;
+    final wait = _minInterval - DateTime.now().difference(_lastUploadTime);
+    if (wait > Duration.zero) {
+      // Throttled — still dirty, so arm a retry for when the window opens.
+      _debounceTimer?.cancel();
+      _debounceTimer = Timer(wait, _doSync);
+      return;
+    }
 
     final userId = _driveApi.googleUserId;
     if (userId == null) throw Exception('Not authenticated');
@@ -140,16 +160,18 @@ class SyncService extends Notifier<SyncStatus> {
     final local = jsonDecode(await rust_sync.getSyncState());
     if (remoteVer <= (local['snapshot_version'] as int? ?? 0)) return;
 
-    // Snapshot local state before remote overwrites the DB.
-    final localTasks = await _db.getTasks();
-    final localProjects = await _db.getProjects();
-    final localDeletedIds = Set<String>.from(DatabaseService.pendingLocalDeletions);
-
     final encrypted = await _driveApi.downloadSnapshot();
     final userId = _driveApi.googleUserId;
     if (userId == null) throw Exception('Not authenticated');
     final dir = await getApplicationDocumentsDirectory();
     final dbPath = '${dir.path}/plans.db';
+
+    // Snapshot local state as late as possible (right before the file swap)
+    // to shrink the window in which a concurrent edit could land on the
+    // about-to-be-replaced DB file and be lost.
+    final localTasks = await _db.getTasks();
+    final localProjects = await _db.getProjects();
+    final localDeletedIds = Set<String>.from(DatabaseService.pendingLocalDeletions);
 
     await rust_sync.installSnapshot(
       encrypted: encrypted,
@@ -160,22 +182,41 @@ class SyncService extends Notifier<SyncStatus> {
 
     await _db.restart();
 
-    // Merge local data back using last-write-wins by updated_at.
-    for (final task in localTasks) {
-      await _db.upsertTask(task);
-    }
-    for (final project in localProjects) {
-      await _db.upsertProject(project);
-    }
+    try {
+      // Merge local data back using last-write-wins by updated_at. A single
+      // row's failure is logged and skipped rather than aborting the whole
+      // merge, so one bad row can't leave the rest of the merge half-applied.
+      for (final task in localTasks) {
+        try {
+          await _db.upsertTask(task);
+        } catch (e, st) {
+          debugPrint('SyncService: upsertTask failed for ${task.id}: $e\n$st');
+        }
+      }
+      for (final project in localProjects) {
+        try {
+          await _db.upsertProject(project);
+        } catch (e, st) {
+          debugPrint('SyncService: upsertProject failed for ${project.id}: $e\n$st');
+        }
+      }
 
-    // Re-apply local soft-deletes that the remote snapshot may have overwritten.
-    for (final id in localDeletedIds) {
-      await _db.deleteTask(id);
+      // Re-apply local soft-deletes that the remote snapshot may have overwritten.
+      for (final id in localDeletedIds) {
+        try {
+          await _db.deleteTask(id);
+        } catch (e, st) {
+          debugPrint('SyncService: re-delete failed for $id: $e\n$st');
+        }
+      }
+    } finally {
+      // Always clear deletions and invalidate providers so in-memory state
+      // can't permanently diverge from the DB file that was just swapped in,
+      // even if a row above threw.
+      await DatabaseService.clearPendingDeletions(localDeletedIds);
+      ref.invalidate(tasksProvider);
+      ref.invalidate(projectsProvider);
     }
-    DatabaseService.pendingLocalDeletions.removeAll(localDeletedIds);
-
-    ref.invalidate(tasksProvider);
-    ref.invalidate(projectsProvider);
 
     _lastSyncedFrom = '${manifest['device_name'] ?? 'device'} (v$remoteVer)';
   }

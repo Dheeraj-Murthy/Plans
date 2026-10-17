@@ -100,7 +100,7 @@ class TaskParser {
     void Function(String) set,
   ) {
     if (projects.isEmpty) return text;
-    final m = RegExp(r'@(\w+)', caseSensitive: false).firstMatch(text);
+    final m = RegExp(r'(?:^|\s)@(\w+)', caseSensitive: false).firstMatch(text);
     if (m == null) return text;
 
     final matched = projects.where(
@@ -247,18 +247,22 @@ class TaskParser {
 
   static _TimeInfo? _extractTime(String text) {
     final re = RegExp(
-      r'(?:at\s+)?\b(\d{1,2})([:.](\d{1,2}))?\s*(am|pm)?\b',
+      r'(?:at\s+)?\b(\d{1,2})(?:([:.])(\d{1,2}))?\s*(am|pm)?\b',
       caseSensitive: false,
     );
     for (final m in re.allMatches(text)) {
       final full = m.group(0)!.toLowerCase();
       final hasAt = full.startsWith('at ');
-      final hasMinute = m.group(2) != null;
+      final separator = m.group(2);
+      final hasMinute = m.group(3) != null;
       final hasAmPm = m.group(4) != null;
+      // Bare `.` (e.g. "3.27") is ambiguous with decimals/versions; only
+      // treat it as a time when disambiguated by "at" or am/pm.
+      if (separator == '.' && !hasAt && !hasAmPm) continue;
       if (!hasAt && !hasMinute && !hasAmPm) continue;
 
       final hour = int.parse(m.group(1)!);
-      final minute = m.group(2) != null ? int.parse(m.group(3)!) : 0;
+      final minute = hasMinute ? int.parse(m.group(3)!) : 0;
       if (minute < 0 || minute > 59) continue;
 
       final ap = m.group(4)?.toLowerCase();
@@ -500,6 +504,12 @@ class TaskParser {
       var mid = DateTime(today.year, today.month, today.day, 0, minute);
       if (mid.isAfter(now)) return mid;
       return noon.add(const Duration(days: 1));
+    }
+
+    if (hour >= 13 && hour <= 23) {
+      // Already unambiguous 24-hour literal — don't also try a +12 "pm" guess.
+      var dt = DateTime(today.year, today.month, today.day, hour, minute);
+      return dt.isAfter(now) ? dt : dt.add(const Duration(days: 1));
     }
 
     var am = DateTime(today.year, today.month, today.day, hour, minute);

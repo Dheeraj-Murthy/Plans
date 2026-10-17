@@ -68,7 +68,11 @@ class ProjectsNotifier extends Notifier<List<Project>> {
   }) async {
     final idx = state.indexWhere((p) => p.id == id);
     if (idx < 0) return;
-    final updated = state[idx].copyWith(name: name, colorIndex: colorIndex);
+    final updated = state[idx].copyWith(
+      name: name,
+      colorIndex: colorIndex,
+      updatedAt: DateTime.now(),
+    );
     await _db.updateProject(updated);
     ref.read(syncServiceProvider.notifier).markDirty();
     final list = [...state];

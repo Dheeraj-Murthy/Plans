@@ -86,11 +86,20 @@ class Recurrence {
       case RecurrenceFrequency.weekly:
         return from.add(Duration(days: 7 * interval));
       case RecurrenceFrequency.monthly:
-        return DateTime(from.year, from.month + interval, from.day, from.hour, from.minute);
+        final totalMonths = from.month - 1 + interval;
+        final targetYear = from.year + totalMonths ~/ 12;
+        final targetMonth = totalMonths % 12 + 1;
+        final day = from.day.clamp(1, _daysInMonth(targetYear, targetMonth));
+        return DateTime(targetYear, targetMonth, day, from.hour, from.minute);
       case RecurrenceFrequency.yearly:
-        return DateTime(from.year + interval, from.month, from.day, from.hour, from.minute);
+        final targetYear = from.year + interval;
+        final day = from.day.clamp(1, _daysInMonth(targetYear, from.month));
+        return DateTime(targetYear, from.month, day, from.hour, from.minute);
     }
   }
+
+  /// Day 0 of the following month is the last day of [month].
+  static int _daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
 
   String get label {
     if (isWeekdays) return 'Weekdays';

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -56,7 +57,7 @@ class _PlatformAdaptiveShellState
       } else if (intent?['action'] == 'open_task') {
         final taskId = intent?['task_id'];
         if (taskId != null && taskId.isNotEmpty) {
-          _openTask(taskId);
+          unawaited(_openTask(taskId));
         }
       }
     });
@@ -66,6 +67,7 @@ class _PlatformAdaptiveShellState
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(syncServiceProvider.notifier).checkForUpdates();
+      unawaited(ref.read(tasksProvider.notifier).advanceMissedRecurringTasks());
       _checkPendingWidgetSync();
     }
   }
@@ -76,7 +78,7 @@ class _PlatformAdaptiveShellState
     } else if (call.method == 'openTask') {
       final taskId = call.arguments as String?;
       if (taskId != null && taskId.isNotEmpty) {
-        _openTask(taskId);
+        unawaited(_openTask(taskId));
       }
     }
   }
@@ -112,9 +114,18 @@ class _PlatformAdaptiveShellState
     );
   }
 
-  void _openTask(String taskId) {
-    final tasks = ref.read(tasksProvider);
-    final task = tasks.where((t) => t.id == taskId).firstOrNull;
+  Future<void> _openTask(String taskId) async {
+    var task = ref.read(tasksProvider).where((t) => t.id == taskId).firstOrNull;
+    if (task == null) {
+      // Tasks may still be loading from the DB on a cold launch (the widget
+      // tap-back can arrive before TasksNotifier's initial async load
+      // resolves). Poll briefly instead of silently doing nothing.
+      for (var i = 0; i < 20 && task == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (!mounted) return;
+        task = ref.read(tasksProvider).where((t) => t.id == taskId).firstOrNull;
+      }
+    }
     if (task == null) return;
     if (task.isCompleted) {
       ref

@@ -841,12 +841,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Project dco_decode_project(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return Project(
       id: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
       colorIndex: dco_decode_i_64(arr[2]),
+      updatedAt: dco_decode_i_64(arr[3]),
     );
   }
 
@@ -1000,7 +1001,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_id = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_colorIndex = sse_decode_i_64(deserializer);
-    return Project(id: var_id, name: var_name, colorIndex: var_colorIndex);
+    var var_updatedAt = sse_decode_i_64(deserializer);
+    return Project(
+        id: var_id,
+        name: var_name,
+        colorIndex: var_colorIndex,
+        updatedAt: var_updatedAt);
   }
 
   @protected
@@ -1171,6 +1177,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.id, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_i_64(self.colorIndex, serializer);
+    sse_encode_i_64(self.updatedAt, serializer);
   }
 
   @protected

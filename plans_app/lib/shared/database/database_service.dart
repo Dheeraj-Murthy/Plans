@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:plans_app/src/rust/api.dart' as rust_api;
 import 'package:plans_app/src/rust/api/tasks.dart' as rust_tasks;
 import 'package:plans_app/src/rust/api/projects.dart' as rust_projects;
@@ -14,8 +15,35 @@ final databaseServiceProvider = Provider<DatabaseService>((ref) {
 });
 
 class DatabaseService {
-  // Task IDs soft-deleted this session; cleared after a successful sync merge.
+  // Task IDs soft-deleted locally but not yet confirmed merged by a sync.
+  // Persisted so a delete made just before app close/crash doesn't get
+  // overwritten back to "active" by the next snapshot download.
   static final pendingLocalDeletions = <String>{};
+  static const _pendingDeletionsKey = 'pending_local_deletions';
+
+  static Future<void> loadPendingDeletions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList(_pendingDeletionsKey);
+      if (saved != null) pendingLocalDeletions.addAll(saved);
+    } catch (e, st) {
+      debugPrint('DatabaseService.loadPendingDeletions failed: $e\n$st');
+    }
+  }
+
+  static Future<void> _persistPendingDeletions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_pendingDeletionsKey, pendingLocalDeletions.toList());
+    } catch (e, st) {
+      debugPrint('DatabaseService._persistPendingDeletions failed: $e\n$st');
+    }
+  }
+
+  static Future<void> clearPendingDeletions(Iterable<String> ids) async {
+    pendingLocalDeletions.removeAll(ids);
+    await _persistPendingDeletions();
+  }
 
   Future<List<Task>> getTasks() async {
     try {
@@ -23,7 +51,7 @@ class DatabaseService {
       return raw.map(_rustTaskToDomain).toList();
     } catch (e, st) {
       debugPrint('DatabaseService.getTasks failed: $e\n$st');
-      return [];
+      rethrow;
     }
   }
 
@@ -90,6 +118,7 @@ class DatabaseService {
     try {
       await rust_tasks.deleteTask(id: id);
       pendingLocalDeletions.add(id);
+      await _persistPendingDeletions();
     } catch (e, st) {
       debugPrint('DatabaseService.deleteTask failed: $e\n$st');
       rethrow;
@@ -100,6 +129,7 @@ class DatabaseService {
     try {
       await rust_tasks.restoreTask(id: id);
       pendingLocalDeletions.remove(id);
+      await _persistPendingDeletions();
     } catch (e, st) {
       debugPrint('DatabaseService.restoreTask failed: $e\n$st');
       rethrow;
@@ -145,6 +175,7 @@ class DatabaseService {
         'id': project.id,
         'name': project.name,
         'color_index': project.colorIndex,
+        'updated_at': project.updatedAt.millisecondsSinceEpoch,
       });
       await rust_projects.upsertProject(projectJson: json);
     } catch (e, st) {
@@ -164,7 +195,7 @@ class DatabaseService {
       return raw.map(_rustProjectToDomain).toList();
     } catch (e, st) {
       debugPrint('DatabaseService.getProjects failed: $e\n$st');
-      return [];
+      rethrow;
     }
   }
 
@@ -231,6 +262,7 @@ class DatabaseService {
       id: p.id,
       name: p.name,
       colorIndex: p.colorIndex.toInt(),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(p.updatedAt.toInt()),
     );
   }
 }

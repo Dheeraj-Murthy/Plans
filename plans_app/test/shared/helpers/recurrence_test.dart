@@ -180,6 +180,41 @@ void main() {
         expect(next.day, 5); // 14 days later = June 5
         expect(next.month, 6);
       });
+
+      test('monthly: Jan 31 → clamped to Feb 28 (non-leap)', () {
+        final r = Recurrence(frequency: RecurrenceFrequency.monthly);
+        final d = DateTime(2026, 1, 31, 9, 0); // 2026 is not a leap year
+        final next = r.nextOccurrence(d)!;
+        expect(next.month, 2);
+        expect(next.day, 28);
+        expect(next.hour, 9);
+      });
+
+      test('monthly: Jan 31 → clamped to Feb 29 (leap year)', () {
+        final r = Recurrence(frequency: RecurrenceFrequency.monthly);
+        final d = DateTime(2024, 1, 31, 9, 0); // 2024 is a leap year
+        final next = r.nextOccurrence(d)!;
+        expect(next.month, 2);
+        expect(next.day, 29);
+      });
+
+      test('monthly: Dec 31 → Jan 31 next year (no overflow into March)', () {
+        final r = Recurrence(frequency: RecurrenceFrequency.monthly);
+        final d = DateTime(2026, 12, 31, 9, 0);
+        final next = r.nextOccurrence(d)!;
+        expect(next.year, 2027);
+        expect(next.month, 1);
+        expect(next.day, 31);
+      });
+
+      test('yearly: Feb 29 on a leap year → clamped to Feb 28 next year', () {
+        final r = Recurrence(frequency: RecurrenceFrequency.yearly);
+        final d = DateTime(2024, 2, 29, 9, 0);
+        final next = r.nextOccurrence(d)!;
+        expect(next.year, 2025);
+        expect(next.month, 2);
+        expect(next.day, 28);
+      });
     });
 
     group('label', () {

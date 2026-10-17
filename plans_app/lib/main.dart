@@ -11,6 +11,7 @@ import 'theme/app_theme.dart';
 import 'routing/app_router.dart';
 import 'shared/database/database_service.dart';
 import 'shared/notifications/notification_service.dart';
+import 'features/tasks/widgets/quick_add_app.dart';
 import 'package:home_widget/home_widget.dart';
 
 final widgetIntentProvider = Provider<Map<String, String>?>((ref) => null);
@@ -52,6 +53,7 @@ void main() async {
 
   final dir = await getApplicationDocumentsDirectory();
   await rust_api.initDatabase(path: '${dir.path}/plans.db');
+  await DatabaseService.loadPendingDeletions();
   await NotificationService.init();
   NotificationService.navigatorKey = navigatorKey;
 
@@ -62,6 +64,18 @@ void main() async {
   }
 
   final db = DatabaseService();
+
+  if (initialIntent?['action'] == 'quick_add') {
+    // Launched from the homescreen widget's "Add task" button
+    // (QuickAddActivity) — show only the composer, never the full shell.
+    runApp(
+      ProviderScope(
+        overrides: [databaseServiceProvider.overrideWithValue(db)],
+        child: const QuickAddApp(),
+      ),
+    );
+    return;
+  }
 
   runApp(
     ProviderScope(

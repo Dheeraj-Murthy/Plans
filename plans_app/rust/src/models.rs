@@ -25,4 +25,6 @@ pub struct Project {
     pub id: String,
     pub name: String,
     pub color_index: i64,
+    #[serde(default)]
+    pub updated_at: i64,
 }

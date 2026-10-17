@@ -173,6 +173,7 @@ final filteredTasksProvider = Provider<List<Task>>((ref) {
 class TasksNotifier extends Notifier<List<Task>> {
   late DatabaseService _db;
   Timer? _widgetUpdateTimer;
+  bool _advancingMissedRecurrence = false;
 
   @override
   List<Task> build() {
@@ -198,14 +199,91 @@ class TasksNotifier extends Notifier<List<Task>> {
 
   void _load() {
     unawaited(
-      _db.getTasks().then((tasks) {
+      _db.getTasks().then((tasks) async {
         state = tasks;
         NotificationService.rescheduleAll(tasks);
         WidgetBridge.notifyUpdate(allTasks: state, allProjects: ref.read(projectsProvider));
+        await advanceMissedRecurringTasks();
       }).catchError((e, st) {
         debugPrint('TasksNotifier._load failed: $e\n$st');
       }),
     );
+  }
+
+  // A recurring task only advanced to its next occurrence when completed
+  // (see toggleTask), so missing one (never completing it) silently broke
+  // the series — no next occurrence ever got created, so it stayed quiet
+  // forever after. This catches any recurring task whose due date has
+  // already passed and are still incomplete, and rolls the series forward
+  // to the next future occurrence, independent of whether the missed one
+  // ever gets completed. Call on app launch and on resume from background.
+  Future<void> advanceMissedRecurringTasks() async {
+    if (_advancingMissedRecurrence) return;
+    _advancingMissedRecurrence = true;
+    try {
+      await _advanceMissedRecurringTasks();
+    } finally {
+      _advancingMissedRecurrence = false;
+    }
+  }
+
+  Future<void> _advanceMissedRecurringTasks() async {
+    final now = DateTime.now();
+    for (final task in List<Task>.of(state)) {
+      if (task.recurrence == null || task.dueDate == null) continue;
+      if (task.isCompleted || !task.dueDate!.isBefore(now)) continue;
+
+      final rule = Recurrence.fromStorage(task.recurrence!);
+      var nextDue = rule.nextOccurrence(task.dueDate!);
+      // Catch up past any other occurrences also already missed (e.g. the
+      // app wasn't opened for several days) without creating one task per
+      // skipped day — only the next upcoming occurrence is created.
+      var guard = 0;
+      while (nextDue != null && !nextDue.isAfter(now) && guard < 1000) {
+        nextDue = rule.nextOccurrence(nextDue);
+        guard++;
+      }
+      if (nextDue == null) continue;
+
+      try {
+        // Detach the series from the missed task so it can't be re-rolled
+        // forward again on the next launch — it stays as a missed, visible,
+        // completable task, while the new one carries the series onward.
+        final detached = task.copyWith(recurrence: null);
+        await _db.updateTask(detached);
+        final nextTask = await _db.insertTask(
+          title: task.title,
+          description: task.description,
+          dueDate: nextDue,
+          priority: task.priority.index,
+          projectId: task.projectId,
+          reminderMinutes: task.reminderMinutes,
+          recurrence: task.recurrence,
+        );
+        final idx = state.indexWhere((t) => t.id == task.id);
+        final newState = List<Task>.of(state);
+        if (idx != -1) newState[idx] = detached;
+        newState.add(nextTask);
+        state = newState;
+        ref.read(syncServiceProvider.notifier).markDirty();
+        unawaited(NotificationService.scheduleForTask(
+          nextTask,
+          style: nextTask.priority == TaskPriority.critical
+              ? ReminderStyle.fullScreenAlarm
+              : ReminderStyle.notification,
+        ));
+      } catch (e, st) {
+        debugPrint('TasksNotifier.advanceMissedRecurringTasks failed for ${task.id}: $e\n$st');
+      }
+    }
+  }
+
+  // A fire-and-forget DB write failed after an optimistic state update
+  // already applied. Reload from the DB so in-memory state can't stay
+  // permanently out of sync with what was actually persisted.
+  void _revertOnError(Object e, StackTrace st, String op) {
+    debugPrint('TasksNotifier: $op failed, reloading from DB: $e\n$st');
+    _load();
   }
 
   Future<Task> addTask({
@@ -228,7 +306,12 @@ class TasksNotifier extends Notifier<List<Task>> {
     );
     state = [...state, task];
     ref.read(syncServiceProvider.notifier).markDirty();
-    NotificationService.scheduleForTask(
+    // Awaited (unlike toggleTask/updateTask's fire-and-forget scheduling):
+    // callers of addTask (e.g. the quick-add widget flow) may tear down
+    // this engine's Activity immediately after this returns, which would
+    // otherwise race ahead of the in-flight platform channel call and
+    // crash the notification plugin mid-call, silently dropping the alarm.
+    await NotificationService.scheduleForTask(
       task,
       style: task.priority == TaskPriority.critical
           ? ReminderStyle.fullScreenAlarm
@@ -250,7 +333,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     newState[index] = toggled;
     state = newState;
 
-    unawaited(_db.updateTask(toggled));
+    unawaited(_db.updateTask(toggled).catchError((e, st) => _revertOnError(e, st, 'toggleTask')));
     ref.read(syncServiceProvider.notifier).markDirty();
     if (toggled.isCompleted) {
       unawaited(NotificationService.cancelForTask(id));
@@ -285,7 +368,7 @@ class TasksNotifier extends Notifier<List<Task>> {
                   ? ReminderStyle.fullScreenAlarm
                   : ReminderStyle.notification,
             );
-          }));
+          }).catchError((e, st) => _revertOnError(e, st, 'recurrence insertTask')));
         }
       }
     }
@@ -296,7 +379,7 @@ class TasksNotifier extends Notifier<List<Task>> {
   Task? deleteTask(String id) {
     final task = state.where((t) => t.id == id).firstOrNull;
     state = state.where((t) => t.id != id).toList();
-    unawaited(_db.deleteTask(id));
+    unawaited(_db.deleteTask(id).catchError((e, st) => _revertOnError(e, st, 'deleteTask')));
     ref.read(syncServiceProvider.notifier).markDirty();
     NotificationService.cancelForTask(id);
     _debouncedWidgetUpdate();
@@ -320,7 +403,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     final completed = state.where((t) => t.isCompleted).toList();
     if (completed.isEmpty) return;
     for (final t in completed) {
-      unawaited(_db.deleteTask(t.id));
+      unawaited(_db.deleteTask(t.id).catchError((e, st) => _revertOnError(e, st, 'clearCompleted')));
       NotificationService.cancelForTask(t.id);
     }
     state = state.where((t) => !t.isCompleted).toList();
@@ -334,7 +417,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     final newState = List<Task>.of(state);
     newState[idx] = updated;
     state = newState;
-    unawaited(_db.updateTask(updated));
+    unawaited(_db.updateTask(updated).catchError((e, st) => _revertOnError(e, st, 'updateTask')));
     ref.read(syncServiceProvider.notifier).markDirty();
     unawaited(NotificationService.scheduleForTask(
       updated,
@@ -350,7 +433,8 @@ class TasksNotifier extends Notifier<List<Task>> {
     final moved = tasks.removeAt(oldIndex);
     tasks.insert(newIndex, moved);
     state = tasks;
-    unawaited(_db.reorderTasks(tasks.map((t) => t.id).toList()));
+    unawaited(_db.reorderTasks(tasks.map((t) => t.id).toList())
+        .catchError((e, st) => _revertOnError(e, st, 'reorderTask')));
     ref.read(syncServiceProvider.notifier).markDirty();
     _debouncedWidgetUpdate();
   }

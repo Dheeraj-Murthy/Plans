@@ -78,6 +78,49 @@ void main() {
       container.dispose();
     });
 
+    test('advanceMissedRecurringTasks rolls a missed daily task forward', () async {
+      final db = FakeDatabaseService();
+      final missed = await db.insertTask(
+        title: 'Take pills',
+        dueDate: DateTime.now().subtract(const Duration(days: 3)),
+        recurrence: 'daily|1',
+        priority: TaskPriority.critical.index,
+      );
+      final container = createContainer(db);
+      await waitForTasks(container);
+      await waitForTasks(container);
+
+      final tasks = container.read(tasksProvider);
+      final stillMissed = tasks.firstWhere((t) => t.id == missed.id);
+      expect(stillMissed.recurrence, isNull,
+          reason: 'series should detach from the missed occurrence');
+      expect(stillMissed.isCompleted, false,
+          reason: 'the missed task itself stays as-is, just detached');
+
+      final next = tasks.firstWhere((t) => t.id != missed.id);
+      expect(next.title, 'Take pills');
+      expect(next.recurrence, 'daily|1');
+      expect(next.dueDate!.isAfter(DateTime.now()), true,
+          reason: 'next occurrence must be rolled forward into the future');
+      container.dispose();
+    });
+
+    test('advanceMissedRecurringTasks leaves on-time recurring tasks alone', () async {
+      final db = FakeDatabaseService();
+      await db.insertTask(
+        title: 'Future daily',
+        dueDate: DateTime.now().add(const Duration(hours: 1)),
+        recurrence: 'daily|1',
+      );
+      final container = createContainer(db);
+      await waitForTasks(container);
+      await waitForTasks(container);
+
+      expect(container.read(tasksProvider).length, 1);
+      expect(container.read(tasksProvider).first.recurrence, 'daily|1');
+      container.dispose();
+    });
+
     // test('clearCompleted removes only completed tasks', () async {
     //   final db = FakeDatabaseService();
     //   final container = createContainer(db);
