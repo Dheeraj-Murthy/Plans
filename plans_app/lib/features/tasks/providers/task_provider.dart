@@ -174,6 +174,13 @@ class TasksNotifier extends Notifier<List<Task>> {
   late DatabaseService _db;
   Timer? _widgetUpdateTimer;
   bool _advancingMissedRecurrence = false;
+  final Completer<void> _firstLoadCompleter = Completer<void>();
+
+  // Callers that need `state` to actually reflect the DB (e.g. applying a
+  // widget toggle by id) must await this first — `build()` returns `[]`
+  // synchronously and `_load()` populates state asynchronously after, so
+  // reading `state` right after provider creation can race ahead of it.
+  Future<void> get firstLoad => _firstLoadCompleter.future;
 
   @override
   List<Task> build() {
@@ -219,6 +226,8 @@ class TasksNotifier extends Notifier<List<Task>> {
         await advanceMissedRecurringTasks();
       }).catchError((e, st) {
         debugPrint('TasksNotifier._load failed: $e\n$st');
+      }).whenComplete(() {
+        if (!_firstLoadCompleter.isCompleted) _firstLoadCompleter.complete();
       }),
     );
   }

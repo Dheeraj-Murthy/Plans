@@ -89,6 +89,12 @@ class _PlatformAdaptiveShellState
       const channel = MethodChannel('plans/widget/deeplink');
       final pendingIds = (await channel.invokeMethod<List<dynamic>>('checkPendingWidgetSync')) ?? [];
       if (pendingIds.isNotEmpty) {
+        // Native already cleared these ids from its prefs on read, so if we
+        // apply them before the task list has finished its initial DB load
+        // (state is still `[]` right after a cold app open), toggleTask
+        // can't find the task and the tap is lost for good. Wait for the
+        // real load first.
+        await ref.read(tasksProvider.notifier).firstLoad;
         for (final id in pendingIds) {
           ref.read(tasksProvider.notifier).toggleTask(id as String);
         }
