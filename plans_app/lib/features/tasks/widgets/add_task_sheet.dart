@@ -43,23 +43,32 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   // Staged subtask titles for a task that doesn't exist yet — flushed to
   // real subtasks in _submit() once addTask() returns the new task's id.
   List<String> _stagedSubtasks = [];
+  // Whether the dedicated subtasks block is mounted at all. Stays false (no
+  // space taken from the description below) until the task actually has
+  // subtasks, or the user asks for one via the "Subtask" chip.
+  late bool _showSubtasks;
+  // True only when the chip (not pre-existing subtasks) revealed the block,
+  // so the input autofocuses for that case but doesn't steal focus from the
+  // title field when a task with subtasks is simply opened for editing.
+  bool _subtasksRevealedByChip = false;
 
   @override
   void initState() {
     super.initState();
     final task = widget.existingTask;
     _titleController = HighlightedTaskController(text: task?.title ?? '');
-    _descriptionController =
-        TextEditingController(text: task?.description ?? '');
+    _descriptionController = TextEditingController(
+      text: task?.description ?? '',
+    );
     _dueDate = task?.dueDate;
     _priority = task?.priority ?? TaskPriority.none;
     _reminderMinutes = task?.reminderMinutes;
     _recurrence = task?.recurrence;
+    _showSubtasks = (task?.subtaskTotal ?? 0) > 0;
 
     if (task != null) {
       final projects = ref.read(projectsProvider);
-      _localProjectIndex =
-          projects.indexWhere((p) => p.id == task.projectId);
+      _localProjectIndex = projects.indexWhere((p) => p.id == task.projectId);
       if (_localProjectIndex < 0) _localProjectIndex = 0;
     } else {
       _localProjectIndex = 0;
@@ -111,16 +120,18 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
             const Divider(color: AppColors.border, height: 1, thickness: 1),
             const SizedBox(height: AppSpacing.md),
             _buildDescriptionField(),
-            const SizedBox(height: AppSpacing.md),
-            const Divider(color: AppColors.border, height: 1, thickness: 1),
-            const SizedBox(height: AppSpacing.md),
-            SubtasksSection(
-              taskId: widget.existingTask?.id,
-              stagedTitles: _stagedSubtasks,
-              onStagedTitlesChanged: (titles) =>
-                  setState(() => _stagedSubtasks = titles),
-              initiallyExpanded: (widget.existingTask?.subtaskTotal ?? 0) > 0,
-            ),
+            if (_showSubtasks) ...[
+              const SizedBox(height: AppSpacing.md),
+              const Divider(color: AppColors.border, height: 1, thickness: 1),
+              const SizedBox(height: AppSpacing.md),
+              SubtasksSection(
+                taskId: widget.existingTask?.id,
+                stagedTitles: _stagedSubtasks,
+                onStagedTitlesChanged: (titles) =>
+                    setState(() => _stagedSubtasks = titles),
+                autofocusInput: _subtasksRevealedByChip,
+              ),
+            ],
           ],
         ),
       ),
@@ -148,10 +159,14 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
             controller: _titleController,
             focusNode: _titleFocusNode,
             autofocus: true,
-            style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
+            style: AppTypography.bodyLarge.copyWith(
+              color: AppColors.textPrimary,
+            ),
             decoration: InputDecoration(
               hintText: 'What needs to be done?',
-              hintStyle: AppTypography.bodyLarge.copyWith(color: AppColors.textMuted),
+              hintStyle: AppTypography.bodyLarge.copyWith(
+                color: AppColors.textMuted,
+              ),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -164,7 +179,10 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
     );
   }
 
-  Widget _buildChipsAndActionsRow(List<Project> projects, String currentProjectId) {
+  Widget _buildChipsAndActionsRow(
+    List<Project> projects,
+    String currentProjectId,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -176,19 +194,23 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 AppChip(
                   key: _priorityKey,
                   icon: Icons.flag_outlined,
-                  label: _priority == TaskPriority.none ? 'Priority' : _priority.name,
+                  label: _priority == TaskPriority.none
+                      ? 'Priority'
+                      : _priority.name,
                   color: _priority == TaskPriority.critical
                       ? AppColors.priorityCritical
                       : _priority == TaskPriority.high
-                          ? AppColors.priorityHigh
-                          : _priority == TaskPriority.medium
-                              ? AppColors.priorityMedium
-                              : null,
+                      ? AppColors.priorityHigh
+                      : _priority == TaskPriority.medium
+                      ? AppColors.priorityMedium
+                      : null,
                   onTap: _showPriorityMenu,
                 ),
                 AppChip(
                   icon: Icons.calendar_today_outlined,
-                  label: _dueDate != null ? formatDueDateTime(_dueDate!) : 'Due date',
+                  label: _dueDate != null
+                      ? formatDueDateTime(_dueDate!)
+                      : 'Due date',
                   onTap: _pickDate,
                 ),
                 AppChip(
@@ -209,13 +231,23 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 AppChip(
                   key: _projectKey,
                   icon: Icons.folder_outlined,
-                  label: projects
+                  label:
+                      projects
                           .where((p) => p.id == currentProjectId)
                           .firstOrNull
                           ?.name ??
                       'Project',
                   onTap: _showProjectMenu,
                 ),
+                if (!_showSubtasks)
+                  AppChip(
+                    icon: Icons.checklist_rounded,
+                    label: 'Subtask',
+                    onTap: () => setState(() {
+                      _showSubtasks = true;
+                      _subtasksRevealedByChip = true;
+                    }),
+                  ),
               ],
             ),
           ),
@@ -231,7 +263,11 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
                 color: AppColors.danger.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.danger),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                size: 18,
+                color: AppColors.danger,
+              ),
             ),
           ),
         ],
@@ -247,7 +283,11 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
               color: AppColors.accent,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.arrow_upward_rounded, size: 18, color: Colors.white),
+            child: const Icon(
+              Icons.arrow_upward_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
           ),
         ),
       ],
@@ -263,10 +303,14 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
         Expanded(
           child: TextField(
             controller: _descriptionController,
-            style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
             decoration: InputDecoration(
               hintText: 'Add description...',
-              hintStyle: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
+              hintStyle: AppTypography.bodySmall.copyWith(
+                color: AppColors.textMuted,
+              ),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -282,7 +326,9 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   }
 
   void _deleteTask() {
-    final deleted = ref.read(tasksProvider.notifier).deleteTask(widget.existingTask!.id);
+    final deleted = ref
+        .read(tasksProvider.notifier)
+        .deleteTask(widget.existingTask!.id);
     if (deleted != null) {
       final action = TaskDeleted(deleted);
       ref.read(undoStackProvider.notifier).push(action);
@@ -292,7 +338,11 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
   }
 
   Future<void> _showReminderMenu() async {
-    final result = await showReminderMenu(context, _reminderKey, _reminderMinutes);
+    final result = await showReminderMenu(
+      context,
+      _reminderKey,
+      _reminderMinutes,
+    );
     if (result != null) {
       setState(() => _reminderMinutes = result == noReminder ? null : result);
     }
@@ -333,7 +383,8 @@ class _AddTaskSheetState extends ConsumerState<AddTaskSheet> {
 
     final parsed = TaskParser.parse(raw, projects);
     final effectiveTitle = parsed.title.isNotEmpty ? parsed.title : raw;
-    final effectiveProjectId = parsed.projectId ??
+    final effectiveProjectId =
+        parsed.projectId ??
         (projects.isNotEmpty
             ? projects[_localProjectIndex % projects.length].id
             : 'default');

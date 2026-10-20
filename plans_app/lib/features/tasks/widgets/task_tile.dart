@@ -40,7 +40,20 @@ class _TaskTileState extends ConsumerState<TaskTile> {
   bool _isPressed = false;
   bool _expanded = false;
 
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
 
   String _formatDueDate(DateTime? date) {
     if (date == null) return '';
@@ -159,106 +172,121 @@ class _TaskTileState extends ConsumerState<TaskTile> {
       onExit: (_) => setState(() => _isHovered = false),
       child: Listener(
         onPointerDown: (_) => setState(() => _isPressed = true),
-        onPointerUp: (_) => Future.delayed(
-          const Duration(milliseconds: 200),
-          () {
-            if (mounted) setState(() => _isPressed = false);
-          },
-        ),
+        onPointerUp: (_) =>
+            Future.delayed(const Duration(milliseconds: 200), () {
+              if (mounted) setState(() => _isPressed = false);
+            }),
         onPointerCancel: (_) => setState(() => _isPressed = false),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-              decoration: BoxDecoration(
-                color: _isPressed
-                    ? AppColors.elevated
-                    : _isHovered
-                        ? AppColors.surface
-                        : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              padding: EdgeInsets.only(top: hasDescription ? 4 : 2, bottom: 2),
-              child: Row(
-                crossAxisAlignment: hasDescription
-                    ? CrossAxisAlignment.start
-                    : CrossAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 28,
-                    child: AnimatedOpacity(
-                      duration: AppAnimations.fast,
-                      opacity: _isHovered ? 1.0 : 0.0,
-                      child: ReorderableDragStartListener(
-                        index: widget.index,
-                        child: Icon(
-                          Icons.drag_indicator,
-                          size: 18,
-                          color: AppColors.textMuted.withValues(alpha: 0.4),
+          children: [
+            GestureDetector(
+              // Covers the whole tile so tapping anywhere (title,
+              // description, metadata pills, empty padding) opens edit —
+              // nested tap targets (checkbox, subtask chip, hover icons)
+              // still win locally since the innermost GestureDetector in a
+              // tap's hit-test chain resolves the gesture arena first.
+              behavior: HitTestBehavior.opaque,
+              onTap: _openEditSheet,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _isPressed
+                      ? AppColors.elevated
+                      : _isHovered
+                      ? AppColors.surface
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                padding: EdgeInsets.only(
+                  top: hasDescription ? 4 : 2,
+                  bottom: 2,
+                ),
+                child: Row(
+                  crossAxisAlignment: hasDescription
+                      ? CrossAxisAlignment.start
+                      : CrossAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 28,
+                      child: AnimatedOpacity(
+                        duration: AppAnimations.fast,
+                        opacity: _isHovered ? 1.0 : 0.0,
+                        child: ReorderableDragStartListener(
+                          index: widget.index,
+                          child: Icon(
+                            Icons.drag_indicator,
+                            size: 18,
+                            color: AppColors.textMuted.withValues(alpha: 0.4),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: hasDescription
-                          ? CrossAxisAlignment.start
-                          : CrossAxisAlignment.center,
-                      children: [
-                        AnimatedContainer(
-                          duration: AppAnimations.normal,
-                          curve: AppAnimations.easeOut,
-                          width: 3,
-                          height: task.isCompleted ? 0 : 20,
-                          decoration: BoxDecoration(
-                            color: switch (task.priority) {
-                              TaskPriority.critical => AppColors.priorityCritical,
-                              TaskPriority.high => AppColors.priorityHigh,
-                              TaskPriority.medium => AppColors.priorityMedium,
-                              TaskPriority.low => AppColors.priorityLow,
-                              TaskPriority.none => Colors.transparent,
-                            },
-                            borderRadius: BorderRadius.circular(2),
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: hasDescription
+                            ? CrossAxisAlignment.start
+                            : CrossAxisAlignment.center,
+                        children: [
+                          AnimatedContainer(
+                            duration: AppAnimations.normal,
+                            curve: AppAnimations.easeOut,
+                            width: 3,
+                            height: task.isCompleted ? 0 : 20,
+                            decoration: BoxDecoration(
+                              color: switch (task.priority) {
+                                TaskPriority.critical =>
+                                  AppColors.priorityCritical,
+                                TaskPriority.high => AppColors.priorityHigh,
+                                TaskPriority.medium => AppColors.priorityMedium,
+                                TaskPriority.low => AppColors.priorityLow,
+                                TaskPriority.none => Colors.transparent,
+                              },
+                              borderRadius: BorderRadius.circular(2),
+                            ),
                           ),
-                        ),
-                  const SizedBox(width: 4),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Checkbox + title on same row
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  AppCheckbox(
-                                    value: task.isCompleted,
-                                    onChanged: (_) {
-                                      final wasCompleted = ref
-                                          .read(tasksProvider.notifier)
-                                          .toggleTask(task.id);
-                                      if (!wasCompleted) {
-                                        final action = TaskToggled(task.id);
-                                        ref.read(undoStackProvider.notifier).push(action);
-                                        ref.read(lastUndoActionProvider.notifier).set(action);
-                                      }
-                                    },
-                                    color: switch (task.priority) {
-                                      TaskPriority.critical =>
-                                        AppColors.priorityCritical,
-                                      TaskPriority.high =>
-                                        AppColors.priorityHigh,
-                                      TaskPriority.medium =>
-                                        AppColors.priorityMedium,
-                                      TaskPriority.low => AppColors.priorityLow,
-                                      TaskPriority.none => null,
-                                    },
-                                  ),
-                                  const SizedBox(width: AppSpacing.md),
-                                  Expanded(
-                                    child: GestureDetector(
-                                      onTap: _openEditSheet,
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Checkbox + title on same row
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    AppCheckbox(
+                                      value: task.isCompleted,
+                                      onChanged: (_) {
+                                        final wasCompleted = ref
+                                            .read(tasksProvider.notifier)
+                                            .toggleTask(task.id);
+                                        if (!wasCompleted) {
+                                          final action = TaskToggled(task.id);
+                                          ref
+                                              .read(undoStackProvider.notifier)
+                                              .push(action);
+                                          ref
+                                              .read(
+                                                lastUndoActionProvider.notifier,
+                                              )
+                                              .set(action);
+                                        }
+                                      },
+                                      color: switch (task.priority) {
+                                        TaskPriority.critical =>
+                                          AppColors.priorityCritical,
+                                        TaskPriority.high =>
+                                          AppColors.priorityHigh,
+                                        TaskPriority.medium =>
+                                          AppColors.priorityMedium,
+                                        TaskPriority.low =>
+                                          AppColors.priorityLow,
+                                        TaskPriority.none => null,
+                                      },
+                                    ),
+                                    const SizedBox(width: AppSpacing.md),
+                                    Expanded(
                                       child: AnimatedDefaultTextStyle(
                                         duration: AppAnimations.medium,
                                         curve: AppAnimations.easeOut,
@@ -282,217 +310,226 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                             : Text(task.title),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              if (task.description != null &&
-                                  task.description!.isNotEmpty &&
-                                  !task.isCompleted)
-                                Padding(
-                                  // 18 (checkbox) + 12 (md spacing) = offset aligns with title
-                                  padding: const EdgeInsets.only(
-                                    left: 30,
-                                    top: 4,
-                                  ),
-                                  child: Text(
-                                    task.description!,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTypography.bodySmall.copyWith(
-                                      color: AppColors.textMuted,
+                                  ],
+                                ),
+                                if (task.description != null &&
+                                    task.description!.isNotEmpty &&
+                                    !task.isCompleted)
+                                  Padding(
+                                    // AppCheckbox's tap target is 44 wide (not its 18px visual
+                                    // circle) + AppSpacing.md (12) gap = offset that aligns with
+                                    // the title text above.
+                                    padding: const EdgeInsets.only(
+                                      left: 56,
+                                      top: 4,
+                                    ),
+                                    child: Text(
+                                      task.description!,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color: AppColors.textMuted,
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
 
-                  // Metadata row
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Priority dot
-                      if (task.priority != TaskPriority.none &&
-                          !task.isCompleted)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: PriorityDot(priority: task.priority),
-                        ),
-
-                      // Project pill
-                      if (widget.projectName != null && !task.isCompleted)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: (widget.projectColor ?? Colors.grey).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              widget.projectName!,
-                              style: AppTypography.label.copyWith(
-                                fontSize: 11,
-                                color: widget.projectColor,
-                              ),
-                            ),
+                    // Metadata row
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Priority dot
+                        if (task.priority != TaskPriority.none &&
+                            !task.isCompleted)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: PriorityDot(priority: task.priority),
                           ),
-                        ),
 
-                      // Recurrence icon
-                      if (task.recurrence != null && !task.isCompleted)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Icon(
-                            Icons.repeat_outlined,
-                            size: 12,
-                            color: AppColors.accent.withValues(alpha: 0.7),
-                          ),
-                        ),
-
-                      // Subtask progress chip
-                      if (task.subtaskTotal > 0 && !task.isCompleted)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: GestureDetector(
-                            onTap: () => setState(() => _expanded = !_expanded),
+                        // Project pill
+                        if (widget.projectName != null && !task.isCompleted)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
                             child: Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.surface,
+                                color: (widget.projectColor ?? Colors.grey)
+                                    .withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    '${task.subtaskCompleted}/${task.subtaskTotal}',
-                                    style: AppTypography.label.copyWith(
-                                      fontSize: 11,
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                  Icon(
-                                    _expanded
-                                        ? Icons.expand_less_rounded
-                                        : Icons.expand_more_rounded,
-                                    size: 14,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ],
+                              child: Text(
+                                widget.projectName!,
+                                style: AppTypography.label.copyWith(
+                                  fontSize: 11,
+                                  color: widget.projectColor,
+                                ),
                               ),
                             ),
                           ),
-                        ),
 
-                      // Due date pill
-                      if (task.dueDate != null && !task.isCompleted)
-                        AnimatedOpacity(
-                          duration: AppAnimations.fast,
-                          opacity: _isHovered ? 0 : 1,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
+                        // Recurrence icon
+                        if (task.recurrence != null && !task.isCompleted)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Icon(
+                              Icons.repeat_outlined,
+                              size: 12,
+                              color: AppColors.accent.withValues(alpha: 0.7),
+                            ),
+                          ),
+
+                        // Subtask progress chip
+                        if (task.subtaskTotal > 0 && !task.isCompleted)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setState(() => _expanded = !_expanded),
+                              child: Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 6,
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: _isOverdue
-                                      ? AppColors.danger.withValues(alpha: 0.12)
-                                      : AppColors.surface,
+                                  color: AppColors.surface,
                                   borderRadius: BorderRadius.circular(4),
                                 ),
-                                child: Text(
-                                  _formatDueDate(task.dueDate),
-                                  style: AppTypography.label.copyWith(
-                                    fontSize: 11,
-                                    color: _isOverdue
-                                        ? AppColors.danger
-                                        : AppColors.textMuted,
-                                  ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${task.subtaskCompleted}/${task.subtaskTotal}',
+                                      style: AppTypography.label.copyWith(
+                                        fontSize: 11,
+                                        color: AppColors.textMuted,
+                                      ),
+                                    ),
+                                    Icon(
+                                      _expanded
+                                          ? Icons.expand_less_rounded
+                                          : Icons.expand_more_rounded,
+                                      size: 14,
+                                      color: AppColors.textMuted,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              if (widget.showTime && _hasTime) ...[
-                                const SizedBox(width: 4),
+                            ),
+                          ),
+
+                        // Due date pill
+                        if (task.dueDate != null && !task.isCompleted)
+                          AnimatedOpacity(
+                            duration: AppAnimations.fast,
+                            opacity: _isHovered ? 0 : 1,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 6,
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: AppColors.accent.withValues(alpha: 0.12),
+                                    color: _isOverdue
+                                        ? AppColors.danger.withValues(
+                                            alpha: 0.12,
+                                          )
+                                        : AppColors.surface,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
-                                    _formatTime(task.dueDate!),
+                                    _formatDueDate(task.dueDate),
                                     style: AppTypography.label.copyWith(
                                       fontSize: 11,
-                                      color: AppColors.accent,
+                                      color: _isOverdue
+                                          ? AppColors.danger
+                                          : AppColors.textMuted,
                                     ),
                                   ),
                                 ),
+                                if (widget.showTime && _hasTime) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.accent.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      _formatTime(task.dueDate!),
+                                      style: AppTypography.label.copyWith(
+                                        fontSize: 11,
+                                        color: AppColors.accent,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
+                            ),
+                          ),
+
+                        // Hover actions
+                        if (_isHovered)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              HoverActionIcon(
+                                icon: Icons.flag_outlined,
+                                onTap: _cyclePriority,
+                              ),
+                              const SizedBox(width: 2),
+                              HoverActionIcon(
+                                icon: Icons.delete_outline_rounded,
+                                onTap: () {
+                                  final deleted = ref
+                                      .read(tasksProvider.notifier)
+                                      .deleteTask(task.id);
+                                  if (deleted != null) {
+                                    final action = TaskDeleted(deleted);
+                                    ref
+                                        .read(undoStackProvider.notifier)
+                                        .push(action);
+                                    ref
+                                        .read(lastUndoActionProvider.notifier)
+                                        .set(action);
+                                  }
+                                },
+                              ),
+                              const SizedBox(width: 2),
+                              HoverActionIcon(
+                                icon: Icons.more_horiz_rounded,
+                                onTap: _openEditSheet,
+                              ),
                             ],
                           ),
-                        ),
-
-                      // Hover actions
-                      if (_isHovered)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            HoverActionIcon(
-                              icon: Icons.flag_outlined,
-                              onTap: _cyclePriority,
-                            ),
-                            const SizedBox(width: 2),
-                            HoverActionIcon(
-                              icon: Icons.delete_outline_rounded,
-                              onTap: () {
-                                final deleted = ref
-                                    .read(tasksProvider.notifier)
-                                    .deleteTask(task.id);
-                                if (deleted != null) {
-                                  final action = TaskDeleted(deleted);
-                                  ref.read(undoStackProvider.notifier).push(action);
-                                  ref.read(lastUndoActionProvider.notifier).set(action);
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 2),
-                            HoverActionIcon(
-                              icon: Icons.more_horiz_rounded,
-                              onTap: _openEditSheet,
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 5),
-                ],
+                      ],
+                    ),
+                    const SizedBox(width: 5),
+                  ],
+                ),
               ),
             ),
-            if (_expanded && task.subtaskTotal > 0) _buildExpandedSubtasks(task),
-            const Divider(
-              height: 1,
-              thickness: 0.5,
-              color: AppColors.border,
-            ),
+            if (_expanded && task.subtaskTotal > 0)
+              _buildExpandedSubtasks(task),
+            const Divider(height: 1, thickness: 0.5, color: AppColors.border),
           ],
         ),
-        ),
-      );
+      ),
+    );
   }
 
   Widget _buildExpandedSubtasks(Task task) {
@@ -507,7 +544,8 @@ class _TaskTileState extends ConsumerState<TaskTile> {
               title: s.title,
               isCompleted: s.isCompleted,
               iconSize: 16,
-              onToggle: () => ref.read(subtasksProvider(task.id).notifier).toggle(s.id),
+              onToggle: () =>
+                  ref.read(subtasksProvider(task.id).notifier).toggle(s.id),
             ),
         ],
       ),
