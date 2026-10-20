@@ -22,6 +22,7 @@ import '../shared/notifications/notification_service.dart';
 import '../shared/sync/sync_service.dart';
 import '../shared/sync/sync_indicator.dart';
 import '../shared/widgets/app_toast.dart';
+import '../shared/update/update_banner.dart';
 
 class PlatformAdaptiveShell extends ConsumerStatefulWidget {
   const PlatformAdaptiveShell({super.key});
@@ -234,10 +235,17 @@ class _DesktopShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: const Row(
+      body: const Column(
         children: [
-          SlimSidebar(),
-          Expanded(child: TaskListScreen()),
+          UpdateBanner(),
+          Expanded(
+            child: Row(
+              children: [
+                SlimSidebar(),
+                Expanded(child: TaskListScreen()),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -295,7 +303,12 @@ class _MobileShell extends ConsumerWidget {
         ],
       ),
       drawer: _MobileDrawer(),
-      body: const TaskListScreen(),
+      body: const Column(
+        children: [
+          UpdateBanner(),
+          Expanded(child: TaskListScreen()),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.accent,
         foregroundColor: Colors.white,
