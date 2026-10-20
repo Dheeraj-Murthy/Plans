@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.os.VibrationEffect
@@ -212,9 +213,17 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             views.setViewVisibility(R.id.tv_empty, android.view.View.GONE)
             views.setViewVisibility(R.id.task_list, android.view.View.VISIBLE)
 
+            // data is set to a unique URI on every build so Android treats this
+            // as a brand-new adapter intent and rebinds the ListView from
+            // scratch (RemoteViewsFactory re-created, onDataSetChanged called
+            // synchronously as part of that bind) instead of going through
+            // notifyAppWidgetViewDataChanged's "notify the existing listener"
+            // path — some launchers (confirmed: Nothing OS) let that listener
+            // go null and never reconnect it, silently dropping every refresh.
             val serviceIntent = Intent(context, TaskRemoteViewsService::class.java).apply {
                 putExtra(EXTRA_VIEW, view)
                 putExtra(EXTRA_APP_WIDGET_ID, widgetId)
+                data = Uri.parse("plansapp://widget/$widgetId/$view/${System.nanoTime()}")
             }
 
             val templateIntent = Intent(context, WidgetInteractionReceiver::class.java).apply {
