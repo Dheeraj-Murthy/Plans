@@ -349,7 +349,22 @@ class TasksNotifier extends Notifier<List<Task>> {
 
     final task = state[index];
     final wasCompleted = task.isCompleted;
-    final toggled = task.copyWith(isCompleted: !wasCompleted);
+    var toggled = task.copyWith(isCompleted: !wasCompleted);
+
+    DateTime? nextDue;
+    if (!wasCompleted && task.recurrence != null && task.dueDate != null) {
+      final rule = Recurrence.fromStorage(task.recurrence!);
+      nextDue = rule.nextOccurrence(task.dueDate!);
+      if (nextDue != null) {
+        // Detach the series from the just-completed occurrence — mirrors
+        // _advanceMissedRecurringTasks's detach. Without this, the original
+        // task kept recurrence != null after completion, so if the resume
+        // sweep's missed-recurrence check raced this call (e.g. completing
+        // via the widget while the app was backgrounded), both paths rolled
+        // the same series forward and created two "next" tasks.
+        toggled = toggled.copyWith(recurrence: null);
+      }
+    }
 
     final newState = List<Task>.of(state);
     newState[index] = toggled;
@@ -368,31 +383,25 @@ class TasksNotifier extends Notifier<List<Task>> {
       ));
     }
 
-    if (!wasCompleted) {
-      if (task.recurrence != null && task.dueDate != null) {
-        final rule = Recurrence.fromStorage(task.recurrence!);
-        final nextDue = rule.nextOccurrence(task.dueDate!);
-        if (nextDue != null) {
-          unawaited(_db.insertTask(
-            title: task.title,
-            description: task.description,
-            dueDate: nextDue,
-            priority: task.priority.index,
-            projectId: task.projectId,
-            reminderMinutes: task.reminderMinutes,
-            recurrence: task.recurrence,
-          ).then((nextTask) {
-            state = [...state, nextTask];
-            ref.read(syncServiceProvider.notifier).markDirty();
-            NotificationService.scheduleForTask(
-              nextTask,
-              style: nextTask.priority == TaskPriority.critical
-                  ? ReminderStyle.fullScreenAlarm
-                  : ReminderStyle.notification,
-            );
-          }).catchError((e, st) => _revertOnError(e, st, 'recurrence insertTask')));
-        }
-      }
+    if (nextDue != null) {
+      unawaited(_db.insertTask(
+        title: task.title,
+        description: task.description,
+        dueDate: nextDue,
+        priority: task.priority.index,
+        projectId: task.projectId,
+        reminderMinutes: task.reminderMinutes,
+        recurrence: task.recurrence,
+      ).then((nextTask) {
+        state = [...state, nextTask];
+        ref.read(syncServiceProvider.notifier).markDirty();
+        NotificationService.scheduleForTask(
+          nextTask,
+          style: nextTask.priority == TaskPriority.critical
+              ? ReminderStyle.fullScreenAlarm
+              : ReminderStyle.notification,
+        );
+      }).catchError((e, st) => _revertOnError(e, st, 'recurrence insertTask')));
     }
     _debouncedWidgetUpdate();
     return wasCompleted;

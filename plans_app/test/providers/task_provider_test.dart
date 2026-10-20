@@ -121,6 +121,40 @@ void main() {
       container.dispose();
     });
 
+    test('toggleTask on a recurring task detaches recurrence from the completed original', () async {
+      final db = FakeDatabaseService();
+      final container = createContainer(db);
+      await waitForTasks(container);
+      await container.read(tasksProvider.notifier).addTask(
+        title: 'Daily standup',
+        dueDate: DateTime.now().add(const Duration(hours: 1)),
+        recurrence: 'daily|1',
+      );
+      final original = container.read(tasksProvider).first;
+
+      container.read(tasksProvider.notifier).toggleTask(original.id);
+      await Future(() {});
+      await Future(() {});
+
+      final tasks = container.read(tasksProvider);
+      expect(tasks.length, 2);
+      final completed = tasks.firstWhere((t) => t.id == original.id);
+      expect(completed.isCompleted, true);
+      expect(completed.recurrence, isNull,
+          reason: 'completed occurrence must not still own the series, or a '
+              'later missed-recurrence sweep could roll it forward again '
+              'and create a duplicate "next" task');
+
+      final next = tasks.firstWhere((t) => t.id != original.id);
+      expect(next.recurrence, 'daily|1');
+      expect(next.isCompleted, false);
+
+      // A sweep right after completing must not create a second "next" task.
+      await container.read(tasksProvider.notifier).advanceMissedRecurringTasks();
+      expect(container.read(tasksProvider).length, 2);
+      container.dispose();
+    });
+
     // test('clearCompleted removes only completed tasks', () async {
     //   final db = FakeDatabaseService();
     //   final container = createContainer(db);

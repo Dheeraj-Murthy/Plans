@@ -68,9 +68,17 @@ class _PlatformAdaptiveShellState
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       ref.read(syncServiceProvider.notifier).checkForUpdates();
-      unawaited(ref.read(tasksProvider.notifier).advanceMissedRecurringTasks());
-      _checkPendingWidgetSync();
+      unawaited(_resumeRecurrenceSync());
     }
+  }
+
+  // Pending widget-tap completions must apply before the missed-recurrence
+  // sweep runs — otherwise a task completed via the widget while the app was
+  // backgrounded races the sweep, and both roll the same recurring series
+  // forward, creating two "next" tasks instead of one.
+  Future<void> _resumeRecurrenceSync() async {
+    await _checkPendingWidgetSync();
+    await ref.read(tasksProvider.notifier).advanceMissedRecurringTasks();
   }
 
   Future<dynamic> _handleNativeCall(MethodCall call) async {
