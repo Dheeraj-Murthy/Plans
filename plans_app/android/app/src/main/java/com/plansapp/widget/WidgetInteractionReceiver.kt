@@ -23,7 +23,11 @@ class WidgetInteractionReceiver : BroadcastReceiver() {
             "com.plansapp.action.TOGGLE" -> {
                 val appWidgetId = intent.getIntExtra("appWidgetId", -1)
                 val taskId = intent.getStringExtra("task_id") ?: return
-                PlansAppWidgetProvider.handleToggle(context, appWidgetId, taskId)
+                // handleToggle retries the widget refresh after a short delay
+                // (see its doc comment) — goAsync keeps this receiver's
+                // process alive long enough for that retry to actually run.
+                val pending = goAsync()
+                PlansAppWidgetProvider.handleToggle(context, appWidgetId, taskId) { pending.finish() }
             }
             "com.plansapp.action.SET_VIEW" -> {
                 val appWidgetId = intent.getIntExtra("appWidgetId", -1)
@@ -43,7 +47,8 @@ class WidgetInteractionReceiver : BroadcastReceiver() {
                             return
                         }
                         android.util.Log.d("WidgetToggle", "toggle appWidgetId=$appWidgetId taskId=$taskId")
-                        PlansAppWidgetProvider.handleToggle(context, appWidgetId, taskId)
+                        val pending = goAsync()
+                        PlansAppWidgetProvider.handleToggle(context, appWidgetId, taskId) { pending.finish() }
                     }
                     "open" -> {
                         val taskId = intent.getStringExtra("task_id") ?: return

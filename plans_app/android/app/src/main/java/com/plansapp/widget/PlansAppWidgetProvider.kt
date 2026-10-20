@@ -396,6 +396,7 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
             context: Context,
             appWidgetId: Int,
             taskId: String,
+            onComplete: (() -> Unit)? = null,
         ) {
             Log.d(TAG, "handleToggle appWidgetId=$appWidgetId taskId=$taskId")
             hapticFeedback(context)
@@ -426,15 +427,32 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                 togglePrefs.edit().putString("pending_toggle_ids", arr.toString()).apply()
             } catch (_: Exception) {}
 
-            try {
-                val appWidgetManager = AppWidgetManager.getInstance(context)
-                appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.task_list)
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val views = buildWidgetViews(context, prefs, appWidgetId)
-                appWidgetManager.updateAppWidget(appWidgetId, views)
-            } catch (e: Exception) {
-                Log.e(TAG, "handleToggle widget update failed", e)
+            fun pushWidgetRefresh() {
+                try {
+                    val appWidgetManager = AppWidgetManager.getInstance(context)
+                    appWidgetManager.notifyAppWidgetViewDataChanged(appWidgetId, R.id.task_list)
+                    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val views = buildWidgetViews(context, prefs, appWidgetId)
+                    appWidgetManager.updateAppWidget(appWidgetId, views)
+                } catch (e: Exception) {
+                    Log.e(TAG, "handleToggle widget update failed", e)
+                }
             }
+
+            pushWidgetRefresh()
+
+            // This broadcast often wakes our process from frozen/cached state
+            // (tapping the widget while the app's fully backgrounded). Right
+            // at that moment the launcher's RemoteViewsAdapter connection to
+            // our widget service can still be dead, so the refresh call above
+            // silently no-ops (logcat: "AppWidgetHost: updateAppWidgetDeferred:
+            // null listener") — the data flips but the checkbox never
+            // visually redraws. Retry once shortly after to catch the
+            // adapter once it's reconnected.
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                pushWidgetRefresh()
+                onComplete?.invoke()
+            }, 500)
         }
 
         fun handleSetView(
