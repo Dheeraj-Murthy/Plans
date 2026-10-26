@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -13,6 +14,7 @@ import 'shared/database/database_service.dart';
 import 'shared/notifications/notification_service.dart';
 import 'features/tasks/widgets/quick_add_app.dart';
 import 'package:home_widget/home_widget.dart';
+import 'shared/quickadd/quickadd_server.dart';
 
 final widgetIntentProvider = Provider<Map<String, String>?>((ref) => null);
 final navigatorKey = GlobalKey<NavigatorState>();
@@ -77,16 +79,23 @@ void main() async {
     return;
   }
 
+  final container = ProviderContainer(
+    overrides: [
+      databaseServiceProvider.overrideWithValue(db),
+      widgetIntentProvider.overrideWithValue(initialIntent),
+    ],
+  );
+
+  if (!kIsWeb && Platform.isMacOS) {
+    unawaited(QuickAddServer().start(container));
+  }
+
   runApp(
-    ProviderScope(
-      overrides: [
-        databaseServiceProvider.overrideWithValue(db),
-        widgetIntentProvider.overrideWithValue(initialIntent),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: PlansApp(),
     ),
   );
-
 }
 
 /// Try dev path (flutter run) first, fall back to soname (release bundle).

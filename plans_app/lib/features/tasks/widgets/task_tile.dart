@@ -6,6 +6,7 @@ import '../providers/subtask_provider.dart';
 import '../widgets/add_task_sheet.dart';
 import 'subtask_row.dart';
 import '../../../theme/app_animations.dart';
+import '../../../theme/app_radius.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_typography.dart';
@@ -134,11 +135,11 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                   child: Container(
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.xxl),
                       border: Border.all(color: AppColors.border),
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.xxl),
                       child: AddTaskSheet(existingTask: widget.task),
                     ),
                   ),
@@ -172,10 +173,9 @@ class _TaskTileState extends ConsumerState<TaskTile> {
       onExit: (_) => setState(() => _isHovered = false),
       child: Listener(
         onPointerDown: (_) => setState(() => _isPressed = true),
-        onPointerUp: (_) =>
-            Future.delayed(const Duration(milliseconds: 200), () {
-              if (mounted) setState(() => _isPressed = false);
-            }),
+        onPointerUp: (_) => Future.delayed(AppAnimations.normal, () {
+          if (mounted) setState(() => _isPressed = false);
+        }),
         onPointerCancel: (_) => setState(() => _isPressed = false),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -189,14 +189,16 @@ class _TaskTileState extends ConsumerState<TaskTile> {
               // tap's hit-test chain resolves the gesture arena first.
               behavior: HitTestBehavior.opaque,
               onTap: _openEditSheet,
-              child: Container(
+              child: AnimatedContainer(
+                duration: AppAnimations.fast,
+                curve: AppAnimations.easeOut,
                 decoration: BoxDecoration(
                   color: _isPressed
                       ? AppColors.elevated
                       : _isHovered
                       ? AppColors.surface
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 padding: EdgeInsets.only(
                   top: hasDescription ? 4 : 2,
@@ -242,7 +244,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                 TaskPriority.low => AppColors.priorityLow,
                                 TaskPriority.none => Colors.transparent,
                               },
-                              borderRadius: BorderRadius.circular(2),
+                              borderRadius: BorderRadius.circular(AppRadius.xs),
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -363,12 +365,11 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                               decoration: BoxDecoration(
                                 color: (widget.projectColor ?? Colors.grey)
                                     .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(AppRadius.sm),
                               ),
                               child: Text(
                                 widget.projectName!,
                                 style: AppTypography.label.copyWith(
-                                  fontSize: 11,
                                   color: widget.projectColor,
                                 ),
                               ),
@@ -400,7 +401,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(AppRadius.sm),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -408,7 +409,6 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                     Text(
                                       '${task.subtaskCompleted}/${task.subtaskTotal}',
                                       style: AppTypography.label.copyWith(
-                                        fontSize: 11,
                                         color: AppColors.textMuted,
                                       ),
                                     ),
@@ -444,12 +444,11 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                             alpha: 0.12,
                                           )
                                         : AppColors.surface,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(AppRadius.sm),
                                   ),
                                   child: Text(
                                     _formatDueDate(task.dueDate),
                                     style: AppTypography.label.copyWith(
-                                      fontSize: 11,
                                       color: _isOverdue
                                           ? AppColors.danger
                                           : AppColors.textMuted,
@@ -467,12 +466,11 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                       color: AppColors.accent.withValues(
                                         alpha: 0.12,
                                       ),
-                                      borderRadius: BorderRadius.circular(4),
+                                      borderRadius: BorderRadius.circular(AppRadius.sm),
                                     ),
                                     child: Text(
                                       _formatTime(task.dueDate!),
                                       style: AppTypography.label.copyWith(
-                                        fontSize: 11,
                                         color: AppColors.accent,
                                       ),
                                     ),

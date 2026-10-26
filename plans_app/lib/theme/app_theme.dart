@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_typography.dart';
 
 class AppColors {
   AppColors._();
@@ -78,6 +79,34 @@ class AppTheme {
           thickness: 1,
           space: 0,
         ),
-
+        scrollbarTheme: ScrollbarThemeData(
+          thumbColor: WidgetStateProperty.all(
+            AppColors.textMuted.withValues(alpha: 0.4),
+          ),
+          trackColor: WidgetStateProperty.all(
+            AppColors.border.withValues(alpha: 0.3),
+          ),
+          trackBorderColor: WidgetStateProperty.all(Colors.transparent),
+          thickness: WidgetStateProperty.all(6),
+          radius: const Radius.circular(3),
+          crossAxisMargin: 2,
+        ),
+        textSelectionTheme: TextSelectionThemeData(
+          cursorColor: AppColors.accent,
+          selectionColor: AppColors.accent.withValues(alpha: 0.3),
+          selectionHandleColor: AppColors.accent,
+        ),
+        textTheme: TextTheme(
+          headlineLarge: AppTypography.headingLarge,
+          headlineMedium: AppTypography.headingMedium,
+          bodyLarge: AppTypography.bodyLarge,
+          bodyMedium: AppTypography.bodyMedium,
+          bodySmall: AppTypography.bodySmall,
+          labelLarge: AppTypography.label,
+          labelSmall: AppTypography.caption,
+        ).apply(
+          bodyColor: AppColors.textPrimary,
+          displayColor: AppColors.textPrimary,
+        ),
       );
 }

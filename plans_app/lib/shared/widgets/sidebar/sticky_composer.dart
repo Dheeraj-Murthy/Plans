@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_animations.dart';
+import '../../../theme/app_radius.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_typography.dart';
@@ -172,7 +173,7 @@ class _StickyComposerState extends ConsumerState<StickyComposer> {
       context: context,
       color: AppColors.elevated,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         side: const BorderSide(color: AppColors.border),
       ),
       position: RelativeRect.fromLTRB(
@@ -227,7 +228,7 @@ class _StickyComposerState extends ConsumerState<StickyComposer> {
       context: context,
       color: AppColors.elevated,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         side: const BorderSide(color: AppColors.border),
       ),
       position: RelativeRect.fromLTRB(300, 300, 300, 300),
@@ -271,7 +272,7 @@ class _StickyComposerState extends ConsumerState<StickyComposer> {
             color: isExpanded || _isHovered
                 ? AppColors.surface
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
             border: Border.all(
               color: isExpanded || _isHovered
                   ? AppColors.border

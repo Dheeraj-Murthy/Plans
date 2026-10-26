@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../features/projects/providers/project_provider.dart';
+import '../../../theme/app_animations.dart';
+import '../../../theme/app_radius.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_typography.dart';
@@ -53,7 +55,7 @@ class _SidebarItemState extends ConsumerState<SidebarItem> {
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: AppColors.elevated,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: Column(
@@ -123,8 +125,8 @@ class _SidebarItemState extends ConsumerState<SidebarItem> {
           }
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
+          duration: AppAnimations.normal,
+          curve: AppAnimations.easeOut,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sidebarPadding),
           height: AppSpacing.sidebarItemHeight,
           decoration: BoxDecoration(
@@ -133,7 +135,7 @@ class _SidebarItemState extends ConsumerState<SidebarItem> {
                 : _isHovered
                     ? AppColors.surface
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Row(
             children: [
@@ -153,7 +155,7 @@ class _SidebarItemState extends ConsumerState<SidebarItem> {
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                   ),
                   child: Text(
                     '${widget.count}',
