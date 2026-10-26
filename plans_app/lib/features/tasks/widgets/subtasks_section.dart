@@ -66,6 +66,7 @@ class _SubtasksSectionState extends ConsumerState<SubtasksSection> {
       widget.onStagedTitlesChanged([...widget.stagedTitles, trimmed]);
     }
     _newSubtaskController.clear();
+    _focusNode.requestFocus();
   }
 
   @override
@@ -138,6 +139,10 @@ class _SubtasksSectionState extends ConsumerState<SubtasksSection> {
               isDense: true,
               contentPadding: EdgeInsets.zero,
             ),
+            // No-op: suppresses TextField's default unfocus-on-submit so the
+            // keyboard stays open for rapid multi-subtask entry. onSubmitted
+            // still fires normally afterward.
+            onEditingComplete: () {},
             onSubmitted: _addSubtask,
           ),
         ),

@@ -187,14 +187,26 @@ class TasksNotifier extends Notifier<List<Task>> {
     _db = ref.read(databaseServiceProvider);
     ref.onDispose(() => _widgetUpdateTimer?.cancel());
     _load();
-    ref.listen(projectsProvider, (prev, next) {
-      if (prev == null || prev.length <= next.length) return;
-      final activeIds = next.map((p) => p.id).toSet();
-      state = state.map((t) => activeIds.contains(t.projectId)
-          ? t
-          : t.copyWith(projectId: 'default')).toList();
-    });
     return [];
+  }
+
+  // Called by ProjectsNotifier.deleteProject right after the DB delete
+  // succeeds, so in-memory task state mirrors the DB-level reassignment
+  // (rust `delete_project` already does `project_id='default'` for this
+  // project's tasks). Previously this was inferred reactively via
+  // `ref.listen(projectsProvider, ...)` watching for the list shrinking —
+  // but `ProjectsNotifier.build()` also transiently resets to `[]` on every
+  // rebuild (including the one `SyncService` triggers via
+  // `ref.invalidate(projectsProvider)` after every sync), which that listener
+  // couldn't tell apart from a real deletion, so a sync could reassign every
+  // task to 'default' in memory. Calling this explicitly, only at the actual
+  // deletion site, removes that race entirely.
+  void reassignTasksFromDeletedProject(String projectId) {
+    state = state
+        .map((t) => t.projectId == projectId
+            ? t.copyWith(projectId: 'default')
+            : t)
+        .toList();
   }
 
   void _debouncedWidgetUpdate() {
@@ -333,12 +345,16 @@ class TasksNotifier extends Notifier<List<Task>> {
     // this engine's Activity immediately after this returns, which would
     // otherwise race ahead of the in-flight platform channel call and
     // crash the notification plugin mid-call, silently dropping the alarm.
-    await NotificationService.scheduleForTask(
-      task,
-      style: task.priority == TaskPriority.critical
-          ? ReminderStyle.fullScreenAlarm
-          : ReminderStyle.notification,
-    );
+    try {
+      await NotificationService.scheduleForTask(
+        task,
+        style: task.priority == TaskPriority.critical
+            ? ReminderStyle.fullScreenAlarm
+            : ReminderStyle.notification,
+      );
+    } catch (e, st) {
+      debugPrint('TasksNotifier.addTask: scheduleForTask failed: $e\n$st');
+    }
     _debouncedWidgetUpdate();
     return task;
   }

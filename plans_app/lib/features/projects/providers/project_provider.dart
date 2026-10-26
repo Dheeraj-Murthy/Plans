@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/project.dart';
+import '../../tasks/providers/task_provider.dart';
 import '../../../shared/database/database_service.dart';
 import '../../../shared/sync/sync_service.dart';
 import '../../../shared/widgets/widget_bridge.dart';
@@ -84,6 +85,7 @@ class ProjectsNotifier extends Notifier<List<Project>> {
   Future<void> deleteProject(String id) async {
     await _db.deleteProject(id);
     ref.read(syncServiceProvider.notifier).markDirty();
+    ref.read(tasksProvider.notifier).reassignTasksFromDeletedProject(id);
     state = state.where((p) => p.id != id).toList();
     final selection = ref.read(sidebarSelectionProvider);
     if (selection is ProjectSelection && selection.projectId == id) {

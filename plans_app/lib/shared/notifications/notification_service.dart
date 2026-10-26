@@ -22,6 +22,7 @@ class NotificationService {
   static GlobalKey<NavigatorState>? navigatorKey;
   static final _alarmInfoStore = AlarmInfoStore();
   static int? _currentFullScreenAlarmId;
+  static ({int alarmId, AlarmInfo info})? _pendingFullScreenAlarm;
 
   static Future<void> init() async {
     if (kIsWeb || _initialized) return;
@@ -62,16 +63,14 @@ class NotificationService {
 
     await _fln
         .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
+          MacOSFlutterLocalNotificationsPlugin
+        >()
+        ?.requestPermissions(alert: true, badge: true, sound: true);
 
     final permStatus = await _fln
         .resolvePlatformSpecificImplementation<
-            MacOSFlutterLocalNotificationsPlugin>()
+          MacOSFlutterLocalNotificationsPlugin
+        >()
         ?.checkPermissions();
     _initialized = permStatus?.isEnabled == true;
     debugPrint('NotificationService: macOS initialized=$_initialized');
@@ -113,8 +112,10 @@ class NotificationService {
     // Pre-create a high-importance channel for Android notifications.
     if (!kIsWeb && Platform.isAndroid) {
       try {
-        final androidPlugin = _fln.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        final androidPlugin = _fln
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
         await androidPlugin?.createNotificationChannel(
           const AndroidNotificationChannel(
             'plans_notifications',
@@ -134,30 +135,67 @@ class NotificationService {
     Alarm.ringing.listen((alarmSet) async {
       for (final alarm in alarmSet.alarms) {
         if (_currentFullScreenAlarmId == alarm.id) {
-          debugPrint('NotificationService: already showing full-screen alarm id=${alarm.id} — skip');
+          debugPrint(
+            'NotificationService: already showing full-screen alarm id=${alarm.id} — skip',
+          );
           continue;
         }
         final info = _alarmInfoStore.alarmInfos[alarm.id];
         if (info != null && info.style == ReminderStyle.fullScreenAlarm) {
-          if (navigatorKey?.currentContext == null) {
-            debugPrint('NotificationService: cannot show full-screen alarm — no navigator context');
-            continue;
-          }
-          _currentFullScreenAlarmId = alarm.id;
-          navigatorKey!.currentState!.push(
-            MaterialPageRoute(
-              builder: (_) => AlarmFullScreenScreen(
-                alarmId: alarm.id,
-                taskId: info.taskId,
-                taskTitle: info.title,
-              ),
-            ),
-          );
+          _presentOrQueueFullScreenAlarm(alarmId: alarm.id, info: info);
+          // if (navigatorKey?.currentContext == null) {
+          //   debugPrint(
+          //     'NotificationService: cannot show full-screen alarm — no navigator context',
+          //   );
+          //   continue;
+          // }
+          // _currentFullScreenAlarmId = alarm.id;
+          // navigatorKey!.currentState!.push(
+          //   MaterialPageRoute(
+          //     builder: (_) => AlarmFullScreenScreen(
+          //       alarmId: alarm.id,
+          //       taskId: info.taskId,
+          //       taskTitle: info.title,
+          //     ),
+          //   ),
+          // );
         } else {
-          debugPrint('NotificationService: notification looping id=${alarm.id} "${alarm.notificationSettings.title}"');
+          debugPrint(
+            'NotificationService: notification looping id=${alarm.id} "${alarm.notificationSettings.title}"',
+          );
         }
       }
     });
+  }
+
+  static void _presentOrQueueFullScreenAlarm({
+    required int alarmId,
+    required AlarmInfo info,
+  }) {
+    if (_currentFullScreenAlarmId == alarmId) return;
+
+    final navigator = navigatorKey?.currentState;
+
+    if (navigator == null || navigatorKey?.currentContext == null) {
+      _pendingFullScreenAlarm = (alarmId: alarmId, info: info);
+      debugPrint(
+        'NotificationService: navigator unavailable; queued alrm id=$alarmId',
+      );
+      return;
+    }
+
+    _pendingFullScreenAlarm = null;
+    _currentFullScreenAlarmId = alarmId;
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => AlarmFullScreenScreen(
+          alarmId: alarmId,
+          taskId: info.taskId,
+          taskTitle: info.title,
+        ),
+      ),
+    );
   }
 
   static void _onResponse(NotificationResponse response) {}
@@ -186,16 +224,23 @@ class NotificationService {
       if (Platform.isAndroid) {
         final androidPlugin = _fln
             .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>();
+              AndroidFlutterLocalNotificationsPlugin
+            >();
         final granted = await androidPlugin?.requestNotificationsPermission();
-        debugPrint('NotificationService: Android POST_NOTIFICATIONS granted=$granted');
-        final fsGranted = await androidPlugin?.requestFullScreenIntentPermission();
-        debugPrint('NotificationService: Android USE_FULL_SCREEN_INTENT granted=$fsGranted');
+        debugPrint(
+          'NotificationService: Android POST_NOTIFICATIONS granted=$granted',
+        );
+        final fsGranted = await androidPlugin
+            ?.requestFullScreenIntentPermission();
+        debugPrint(
+          'NotificationService: Android USE_FULL_SCREEN_INTENT granted=$fsGranted',
+        );
         await androidPlugin?.requestExactAlarmsPermission();
       } else {
         final iosPlugin = _fln
             .resolvePlatformSpecificImplementation<
-                IOSFlutterLocalNotificationsPlugin>();
+              IOSFlutterLocalNotificationsPlugin
+            >();
         final granted = await iosPlugin?.requestPermissions(
           alert: true,
           badge: true,
@@ -204,7 +249,9 @@ class NotificationService {
         debugPrint('NotificationService: iOS permission granted=$granted');
       }
     } catch (e, st) {
-      debugPrint('NotificationService.requestMobilePermissions failed: $e\n$st');
+      debugPrint(
+        'NotificationService.requestMobilePermissions failed: $e\n$st',
+      );
     }
   }
 
@@ -214,8 +261,10 @@ class NotificationService {
     if (kIsWeb || Platform.isMacOS) return true;
     try {
       if (Platform.isAndroid) {
-        final androidPlugin = _fln.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        final androidPlugin = _fln
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
         return await androidPlugin?.areNotificationsEnabled() ?? false;
       }
       return true;
@@ -260,7 +309,11 @@ class NotificationService {
 
     final dueStyle = style ?? ReminderStyle.notification;
     final dueId = _dueId(task.id);
-    _alarmInfoStore.alarmInfos[dueId] = AlarmInfo(task.id, task.title, dueStyle);
+    _alarmInfoStore.alarmInfos[dueId] = AlarmInfo(
+      task.id,
+      task.title,
+      dueStyle,
+    );
     await _scheduleNotification(
       id: dueId,
       title: task.title,
@@ -275,7 +328,11 @@ class NotificationService {
         final reminderTime = dueTime.subtract(Duration(minutes: rem));
         if (reminderTime.isAfter(now)) {
           final remId = _reminderId(task.id);
-          _alarmInfoStore.alarmInfos[remId] = AlarmInfo(task.id, task.title, ReminderStyle.notification);
+          _alarmInfoStore.alarmInfos[remId] = AlarmInfo(
+            task.id,
+            task.title,
+            ReminderStyle.notification,
+          );
           await _scheduleNotification(
             id: remId,
             title: task.title,
@@ -295,14 +352,18 @@ class NotificationService {
     _currentFullScreenAlarmId = null;
     _alarmInfoStore.alarmInfos.remove(_dueId(taskId));
     _alarmInfoStore.alarmInfos.remove(_reminderId(taskId));
-    if (Platform.isMacOS) {
-      await _fln.cancel(id: _dueId(taskId));
-      await _fln.cancel(id: _reminderId(taskId));
-    } else {
-      await Alarm.stop(_dueId(taskId));
-      await Alarm.stop(_reminderId(taskId));
-      await _fln.cancel(id: _dueId(taskId));
-      await _fln.cancel(id: _reminderId(taskId));
+    try {
+      if (Platform.isMacOS) {
+        await _fln.cancel(id: _dueId(taskId));
+        await _fln.cancel(id: _reminderId(taskId));
+      } else {
+        await Alarm.stop(_dueId(taskId));
+        await Alarm.stop(_reminderId(taskId));
+        await _fln.cancel(id: _dueId(taskId));
+        await _fln.cancel(id: _reminderId(taskId));
+      }
+    } catch (e, st) {
+      debugPrint('NotificationService.cancelForTask failed: $e\n$st');
     }
     _alarmInfoStore.scheduleSave();
   }
@@ -316,7 +377,11 @@ class NotificationService {
     if (!_initialized) return;
     _currentFullScreenAlarmId = null;
     final fireAt = DateTime.now().add(Duration(minutes: minutes));
-    _alarmInfoStore.alarmInfos[alarmId] = AlarmInfo(taskId, taskTitle, ReminderStyle.fullScreenAlarm);
+    _alarmInfoStore.alarmInfos[alarmId] = AlarmInfo(
+      taskId,
+      taskTitle,
+      ReminderStyle.fullScreenAlarm,
+    );
     await _scheduleNotification(
       id: alarmId,
       title: taskTitle,
@@ -340,8 +405,14 @@ class NotificationService {
     }
     final now = DateTime.now();
     for (final task in tasks) {
-      if (!task.isCompleted && task.dueDate != null && task.dueDate!.isAfter(now)) {
-        await scheduleForTask(task, style: _styleForPriority(task.priority), persist: false);
+      if (!task.isCompleted &&
+          task.dueDate != null &&
+          task.dueDate!.isAfter(now)) {
+        await scheduleForTask(
+          task,
+          style: _styleForPriority(task.priority),
+          persist: false,
+        );
       }
     }
     _alarmInfoStore.scheduleSave();
@@ -354,6 +425,16 @@ class NotificationService {
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────
+
+  static void showPendingAlarms() {
+    final pending = _pendingFullScreenAlarm;
+    if (pending == null) return;
+
+    _presentOrQueueFullScreenAlarm(
+      alarmId: pending.alarmId,
+      info: pending.info,
+    );
+  }
 
   static Future<void> _scheduleNotification({
     required int id,
@@ -417,7 +498,9 @@ class NotificationService {
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
-      debugPrint('NotificationService: macOS scheduled id=$id "$title" at $tzAt');
+      debugPrint(
+        'NotificationService: macOS scheduled id=$id "$title" at $tzAt',
+      );
     } catch (e, st) {
       debugPrint('NotificationService._scheduleMacOS failed: $e\n$st');
     }
@@ -497,7 +580,9 @@ class NotificationService {
       );
       debugPrint('NotificationService: fln scheduled id=$id "$title" at $tzAt');
     } catch (e, st) {
-      debugPrint('NotificationService._scheduleAndroidNotification failed: $e\n$st');
+      debugPrint(
+        'NotificationService._scheduleAndroidNotification failed: $e\n$st',
+      );
     }
   }
 }

@@ -51,6 +51,7 @@ class _PlatformAdaptiveShellState
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
         NotificationService.requestMobilePermissions();
       }
+      NotificationService.showPendingAlarms();
       _checkPendingWidgetSync();
       final intent = ref.read(widgetIntentProvider);
       if (intent?['action'] == 'add_task') {
