@@ -48,11 +48,34 @@ jobs:
       - name: Build Rust (Android)
         run: cd rust && bash build_android.sh
 
+      # Gradle resolves/downloads the NDK zip (~1GB via sdkmanager) as part
+      # of this build, and that download occasionally arrives truncated on
+      # GitHub-hosted runners ("Error reading Zip content from a
+      # SeekableByteChannel") — a transient runner/network issue, not a
+      # build error. Retry a few times before failing the job for real.
       - name: Build App Bundle
-        run: flutter build appbundle --release --dart-define=APP_VERSION=${GITHUB_REF_NAME#v}
+        run: |
+          n=0
+          until [ $n -ge 3 ]; do
+            flutter build appbundle --release --dart-define=APP_VERSION=${GITHUB_REF_NAME#v} && exit 0
+            n=$((n + 1))
+            echo "Build App Bundle failed (attempt $n/3), retrying in 15s..."
+            sleep 15
+          done
+          echo "Build App Bundle failed after 3 attempts"
+          exit 1
 
       - name: Build APK
-        run: flutter build apk --release --dart-define=APP_VERSION=${GITHUB_REF_NAME#v}
+        run: |
+          n=0
+          until [ $n -ge 3 ]; do
+            flutter build apk --release --dart-define=APP_VERSION=${GITHUB_REF_NAME#v} && exit 0
+            n=$((n + 1))
+            echo "Build APK failed (attempt $n/3), retrying in 15s..."
+            sleep 15
+          done
+          echo "Build APK failed after 3 attempts"
+          exit 1
 
       - name: Stage artifacts
         run: |
