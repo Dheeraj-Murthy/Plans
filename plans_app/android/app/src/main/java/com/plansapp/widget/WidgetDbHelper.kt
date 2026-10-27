@@ -11,6 +11,8 @@ data class WidgetTask(
     val priority: Int,
     val isCompleted: Boolean,
     val projectId: String,
+    val subtaskTotal: Int,
+    val subtaskCompleted: Int,
 )
 
 data class WidgetProject(
@@ -53,19 +55,29 @@ class WidgetDbHelper private constructor(context: Context) {
         return writeDb!!
     }
 
+    // LEFT JOINed against a per-task subtask count subquery so the widget
+    // can render the same "n/m" progress chip the in-app task list shows —
+    // without this join, a task's subtask_total/subtask_completed are
+    // always absent from the widget's data and the chip never appears there.
+    private val taskSelectWithSubtasks =
+        "SELECT t.id, t.title, t.due_date, t.priority, t.is_completed, t.project_id, " +
+            "COALESCE(sc.total, 0) AS subtask_total, COALESCE(sc.completed, 0) AS subtask_completed " +
+            "FROM tasks t LEFT JOIN (SELECT task_id, COUNT(*) AS total, SUM(is_completed) AS completed FROM subtasks GROUP BY task_id) sc " +
+            "ON sc.task_id = t.id "
+
     fun getTasks(view: String): List<WidgetTask> {
         val db = getReadDb()
-        val (query, args) = when {
+        val (whereOrderClause, args) = when {
             view == "inbox" ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE is_deleted = 0 AND is_completed = 0 AND (project_id = 'default' OR due_date IS NOT NULL) ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to emptyArray()
+                "WHERE t.is_deleted = 0 AND t.is_completed = 0 AND (t.project_id = 'default' OR t.due_date IS NOT NULL) ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date" to emptyArray()
             view == "timeline" ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE due_date IS NOT NULL AND is_deleted = 0 AND is_completed = 0 ORDER BY due_date" to emptyArray()
+                "WHERE t.due_date IS NOT NULL AND t.is_deleted = 0 AND t.is_completed = 0 ORDER BY t.due_date" to emptyArray()
             view.startsWith("project:") ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE project_id = ? AND is_deleted = 0 AND is_completed = 0 ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to arrayOf(view.removePrefix("project:"))
+                "WHERE t.project_id = ? AND t.is_deleted = 0 AND t.is_completed = 0 ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date" to arrayOf(view.removePrefix("project:"))
             else ->
-                "SELECT id, title, due_date, priority, is_completed, project_id FROM tasks WHERE is_deleted = 0 AND is_completed = 0 AND (project_id = 'default' OR due_date IS NOT NULL) ORDER BY CASE WHEN due_date IS NULL THEN 1 ELSE 0 END, due_date" to emptyArray()
+                "WHERE t.is_deleted = 0 AND t.is_completed = 0 AND (t.project_id = 'default' OR t.due_date IS NOT NULL) ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date" to emptyArray()
         }
-        val cursor = db.rawQuery(query, args)
+        val cursor = db.rawQuery(taskSelectWithSubtasks + whereOrderClause, args)
         val tasks = mutableListOf<WidgetTask>()
         while (cursor.moveToNext()) {
             tasks.add(
@@ -76,6 +88,8 @@ class WidgetDbHelper private constructor(context: Context) {
                     priority = cursor.getInt(cursor.getColumnIndexOrThrow("priority")),
                     isCompleted = cursor.getInt(cursor.getColumnIndexOrThrow("is_completed")) == 1,
                     projectId = cursor.getString(cursor.getColumnIndexOrThrow("project_id")),
+                    subtaskTotal = cursor.getInt(cursor.getColumnIndexOrThrow("subtask_total")),
+                    subtaskCompleted = cursor.getInt(cursor.getColumnIndexOrThrow("subtask_completed")),
                 )
             )
         }

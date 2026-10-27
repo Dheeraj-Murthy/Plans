@@ -33,6 +33,8 @@ class WidgetBridge {
       'priority': t.priority.index,
       'is_completed': t.isCompleted,
       'project_id': t.projectId,
+      'subtask_total': t.subtaskTotal,
+      'subtask_completed': t.subtaskCompleted,
     };
   }
 

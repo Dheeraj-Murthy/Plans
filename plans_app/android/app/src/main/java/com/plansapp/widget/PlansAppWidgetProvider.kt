@@ -604,6 +604,8 @@ class PlansAppWidgetProvider : HomeWidgetProvider() {
                                             put("priority", t.priority)
                                             put("is_completed", t.isCompleted)
                                             put("project_id", t.projectId)
+                                            put("subtask_total", t.subtaskTotal)
+                                            put("subtask_completed", t.subtaskCompleted)
                                         }
                                     },
                                 )

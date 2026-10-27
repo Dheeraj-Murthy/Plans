@@ -400,7 +400,9 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.surface,
+                                  color: AppColors.accent.withValues(
+                                    alpha: 0.12,
+                                  ),
                                   borderRadius: BorderRadius.circular(AppRadius.sm),
                                 ),
                                 child: Row(
@@ -409,7 +411,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                     Text(
                                       '${task.subtaskCompleted}/${task.subtaskTotal}',
                                       style: AppTypography.label.copyWith(
-                                        color: AppColors.textMuted,
+                                        color: AppColors.accent,
                                       ),
                                     ),
                                     Icon(
@@ -417,7 +419,7 @@ class _TaskTileState extends ConsumerState<TaskTile> {
                                           ? Icons.expand_less_rounded
                                           : Icons.expand_more_rounded,
                                       size: 14,
-                                      color: AppColors.textMuted,
+                                      color: AppColors.accent,
                                     ),
                                   ],
                                 ),

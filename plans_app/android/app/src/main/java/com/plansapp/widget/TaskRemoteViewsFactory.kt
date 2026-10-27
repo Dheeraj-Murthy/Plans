@@ -242,6 +242,19 @@ class TaskRemoteViewsFactory(
             rv.setViewVisibility(R.id.tv_due, android.view.View.GONE)
         }
 
+        val subtaskTotal = task.optInt("subtask_total", 0)
+        val subtaskCompleted = task.optInt("subtask_completed", 0)
+        if (subtaskTotal > 0 && !isCompleted) {
+            rv.setTextViewText(R.id.tv_subtask, "$subtaskCompleted/$subtaskTotal")
+            rv.setViewVisibility(R.id.tv_subtask, android.view.View.VISIBLE)
+            rv.setContentDescription(
+                R.id.tv_subtask,
+                "$subtaskCompleted of $subtaskTotal subtasks complete",
+            )
+        } else {
+            rv.setViewVisibility(R.id.tv_subtask, android.view.View.GONE)
+        }
+
         val projectInfo = lookupProjectInfo(
             prefs, task.optString("project_id", ""),
         )

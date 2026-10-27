@@ -320,6 +320,28 @@ class TasksNotifier extends Notifier<List<Task>> {
     _load();
   }
 
+  // The Android homescreen widget's "Add task" button runs in its own,
+  // separate FlutterEngine (QuickAddActivity) — a totally different Dart
+  // isolate from the one backing a MainActivity that's already alive in the
+  // background. It writes the new task straight to the shared SQLite file,
+  // but there's no in-memory channel back to this container, so without an
+  // explicit re-read, this engine's `state` silently falls behind the DB
+  // until the app is fully restarted. Call on resume to pick up anything
+  // another engine/process wrote while this one was backgrounded.
+  Future<void> refreshFromDb() async {
+    try {
+      final tasks = await _db.getTasks();
+      state = tasks;
+      NotificationService.rescheduleAll(tasks);
+      WidgetBridge.notifyUpdate(
+        allTasks: state,
+        allProjects: ref.read(projectsProvider),
+      );
+    } catch (e, st) {
+      debugPrint('TasksNotifier.refreshFromDb failed: $e\n$st');
+    }
+  }
+
   Future<Task> addTask({
     required String title,
     String? description,
@@ -355,7 +377,16 @@ class TasksNotifier extends Notifier<List<Task>> {
     } catch (e, st) {
       debugPrint('TasksNotifier.addTask: scheduleForTask failed: $e\n$st');
     }
-    _debouncedWidgetUpdate();
+    // Immediate, not the 2s-debounced _debouncedWidgetUpdate() other
+    // mutations use — a single quick-add is a deliberate one-off action
+    // (not a rapid-fire burst like reordering), and callers like
+    // QuickAddActivity/QuickAddServer may tear down shortly after this
+    // returns, which would otherwise race the debounce timer and drop the
+    // widget refresh entirely.
+    await WidgetBridge.notifyUpdate(
+      allTasks: state,
+      allProjects: ref.read(projectsProvider),
+    );
     return task;
   }
 

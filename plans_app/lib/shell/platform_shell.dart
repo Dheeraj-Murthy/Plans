@@ -76,8 +76,14 @@ class _PlatformAdaptiveShellState
   // Pending widget-tap completions must apply before the missed-recurrence
   // sweep runs — otherwise a task completed via the widget while the app was
   // backgrounded races the sweep, and both roll the same recurring series
-  // forward, creating two "next" tasks instead of one.
+  // forward, creating two "next" tasks instead of one. The DB refresh runs
+  // first of all: it only pulls in tasks another engine inserted (e.g. the
+  // widget's quick-add), never touches completion state, so it can't race
+  // either of the other two.
   Future<void> _resumeRecurrenceSync() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      await ref.read(tasksProvider.notifier).refreshFromDb();
+    }
     await _checkPendingWidgetSync();
     await ref.read(tasksProvider.notifier).advanceMissedRecurringTasks();
   }
