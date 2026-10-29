@@ -2,7 +2,9 @@ package com.plansapp
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -55,6 +57,11 @@ class MainActivity : FlutterActivity() {
                         result.success(mapOf("action" to ""))
                     }
                 }
+                "setAlarmLockScreenVisible" -> {
+                    val visible = call.arguments as? Boolean ?: false
+                    setAlarmLockScreenVisible(visible)
+                    result.success(null)
+                }
                 "checkPendingWidgetSync" -> {
                     val prefs = getSharedPreferences("HomeWidgetPreferences", Context.MODE_PRIVATE)
                     val ids = mutableListOf<String>()
@@ -70,6 +77,30 @@ class MainActivity : FlutterActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    // Scoped to exactly the window a full-screen alarm is showing — turned
+    // on right before NotificationService pushes AlarmFullScreenScreen and
+    // off as soon as it's dismissed. Never left on for a normal app launch,
+    // which would otherwise let anyone bypass the lock screen just by
+    // tapping the app icon.
+    private fun setAlarmLockScreenVisible(visible: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(visible)
+            setTurnScreenOn(visible)
+        } else if (visible) {
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+            )
+        } else {
+            window.clearFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+            )
         }
     }
 }

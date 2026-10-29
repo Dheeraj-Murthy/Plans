@@ -196,6 +196,52 @@ class DatabaseService {
     }
   }
 
+  // Two devices can each independently advance the same missed recurring
+  // task to its next occurrence (see TasksNotifier.advanceMissedRecurringTasks)
+  // before either has seen the other's change — each inserts a new row with
+  // its own random id, so the sync merge's last-write-wins-by-id upsert
+  // can't tell they're the same logical "next occurrence" and both survive.
+  // Detects groups of incomplete, non-deleted tasks sharing
+  // (project, recurrence rule, title) — which only happens via that race,
+  // never from a user deliberately creating two distinct recurring tasks
+  // with identical text in the same project — and keeps the earliest-due
+  // one, soft-deleting the rest. Returns [tasks] with any deleted
+  // duplicates removed, so callers can use the result as fresh state.
+  Future<List<Task>> dedupeRecurrenceRollovers(List<Task> tasks) async {
+    final groups = <String, List<Task>>{};
+    for (final t in tasks) {
+      if (t.isCompleted || t.recurrence == null) continue;
+      final key = '${t.projectId}|${t.recurrence}|${t.title}';
+      groups.putIfAbsent(key, () => []).add(t);
+    }
+
+    final toRemove = <String>{};
+    for (final group in groups.values) {
+      if (group.length < 2) continue;
+      group.sort((a, b) {
+        final ad = a.dueDate;
+        final bd = b.dueDate;
+        if (ad == null && bd == null) return 0;
+        if (ad == null) return 1;
+        if (bd == null) return -1;
+        return ad.compareTo(bd);
+      });
+      for (final dup in group.skip(1)) {
+        try {
+          await deleteTask(dup.id);
+          toRemove.add(dup.id);
+        } catch (e, st) {
+          debugPrint(
+            'DatabaseService.dedupeRecurrenceRollovers: delete failed for ${dup.id}: $e\n$st',
+          );
+        }
+      }
+    }
+
+    if (toRemove.isEmpty) return tasks;
+    return tasks.where((t) => !toRemove.contains(t.id)).toList();
+  }
+
   Future<void> clearCompleted() async {
     try {
       await rust_tasks.clearCompleted();

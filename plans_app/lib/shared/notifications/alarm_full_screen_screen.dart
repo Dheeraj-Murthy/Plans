@@ -24,6 +24,12 @@ class AlarmFullScreenScreen extends ConsumerStatefulWidget {
 
 class _AlarmFullScreenScreenState extends ConsumerState<AlarmFullScreenScreen> {
   @override
+  void dispose() {
+    NotificationService.onFullScreenAlarmDismissed();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,

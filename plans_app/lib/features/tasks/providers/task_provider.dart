@@ -232,8 +232,9 @@ class TasksNotifier extends Notifier<List<Task>> {
   void _load() {
     unawaited(
       _db.getTasks().then((tasks) async {
-        state = tasks;
-        NotificationService.rescheduleAll(tasks);
+        final deduped = await _db.dedupeRecurrenceRollovers(tasks);
+        state = deduped;
+        NotificationService.rescheduleAll(deduped);
         WidgetBridge.notifyUpdate(allTasks: state, allProjects: ref.read(projectsProvider));
         await advanceMissedRecurringTasks();
       }).catchError((e, st) {
@@ -331,8 +332,9 @@ class TasksNotifier extends Notifier<List<Task>> {
   Future<void> refreshFromDb() async {
     try {
       final tasks = await _db.getTasks();
-      state = tasks;
-      NotificationService.rescheduleAll(tasks);
+      final deduped = await _db.dedupeRecurrenceRollovers(tasks);
+      state = deduped;
+      NotificationService.rescheduleAll(deduped);
       WidgetBridge.notifyUpdate(
         allTasks: state,
         allProjects: ref.read(projectsProvider),

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:alarm/alarm.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -23,6 +24,28 @@ class NotificationService {
   static final _alarmInfoStore = AlarmInfoStore();
   static int? _currentFullScreenAlarmId;
   static ({int alarmId, AlarmInfo info})? _pendingFullScreenAlarm;
+
+  // Same channel name platform_shell.dart's deeplink listener registers on
+  // MainActivity — a MethodChannel is identified by name on the shared
+  // BinaryMessenger, so a second Dart-side handle to it here is fine.
+  static const _nativeChannel = MethodChannel('plans/widget/deeplink');
+
+  // The `alarm` package's own full-screen-intent notification targets
+  // MainActivity, but MainActivity doesn't declare showWhenLocked/
+  // turnScreenOn — without those, Android launches it *behind* the
+  // keyguard, so the alarm plays but nothing visible appears until the
+  // phone is unlocked and the app reopened by hand. Toggled on right
+  // before showing AlarmFullScreenScreen and off when it's dismissed,
+  // never left on, so a normal app launch still has to go through the
+  // lock screen as usual.
+  static Future<void> _setAlarmLockScreenVisible(bool visible) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _nativeChannel.invokeMethod('setAlarmLockScreenVisible', visible);
+    } catch (e, st) {
+      debugPrint('NotificationService._setAlarmLockScreenVisible failed: $e\n$st');
+    }
+  }
 
   static Future<void> init() async {
     if (kIsWeb || _initialized) return;
@@ -186,6 +209,7 @@ class NotificationService {
 
     _pendingFullScreenAlarm = null;
     _currentFullScreenAlarmId = alarmId;
+    unawaited(_setAlarmLockScreenVisible(true));
 
     navigator.push(
       MaterialPageRoute(
@@ -197,6 +221,12 @@ class NotificationService {
       ),
     );
   }
+
+  /// Called by [AlarmFullScreenScreen] when it's dismissed (snoozed or
+  /// completed), so the lock-screen-bypass flags don't stay on past the
+  /// one alarm they were turned on for.
+  static Future<void> onFullScreenAlarmDismissed() =>
+      _setAlarmLockScreenVisible(false);
 
   static void _onResponse(NotificationResponse response) {}
 
@@ -444,7 +474,7 @@ class NotificationService {
     ReminderStyle style = ReminderStyle.notification,
   }) async {
     if (Platform.isMacOS) {
-      await _scheduleMacOS(id: id, title: title, body: body, at: at);
+      await _scheduleMacOS(id: id, title: title, body: body, at: at, style: style);
     } else if (style == ReminderStyle.fullScreenAlarm) {
       final alarmOk = await _scheduleAlarm(
         id: id,
@@ -478,6 +508,7 @@ class NotificationService {
     required String title,
     required String body,
     required DateTime at,
+    ReminderStyle style = ReminderStyle.notification,
   }) async {
     try {
       final tzAt = tz.TZDateTime.from(at, tz.local);
@@ -486,7 +517,7 @@ class NotificationService {
         title: title,
         body: body,
         scheduledDate: tzAt,
-        notificationDetails: const NotificationDetails(
+        notificationDetails: NotificationDetails(
           macOS: DarwinNotificationDetails(
             sound: 'default',
             presentAlert: true,
@@ -494,6 +525,16 @@ class NotificationService {
             presentSound: true,
             presentBanner: true,
             presentList: true,
+            // Time-sensitive notifications are allowed to break through
+            // Focus/Do Not Disturb — without this, a critical-priority
+            // task's "alarm" was just a normal-priority notification that a
+            // Focus schedule could silently swallow. This needs no special
+            // entitlement, unlike .critical, which does (an Apple-approved
+            // provisioning profile this project's ad-hoc `codesign --sign -`
+            // release build doesn't have), so .critical isn't usable here.
+            interruptionLevel: style == ReminderStyle.fullScreenAlarm
+                ? InterruptionLevel.timeSensitive
+                : InterruptionLevel.active,
           ),
         ),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
