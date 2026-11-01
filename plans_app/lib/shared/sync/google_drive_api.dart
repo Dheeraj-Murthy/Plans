@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
@@ -99,11 +99,21 @@ class GoogleDriveApi {
     return jsonDecode(resp.body) as Map<String, dynamic>;
   }
 
+  // Each snapshot's blob gets its own immutable, version-named file instead
+  // of overwriting a single shared 'plans_snapshot.enc'. Two separate Drive
+  // files (blob + manifest) can never be updated as one atomic unit, so a
+  // shared mutable blob name let one device's upload silently overwrite the
+  // blob a concurrent download was about to fetch for an older manifest it
+  // had already read -- checksum mismatch. A per-version filename makes that
+  // race impossible: once v5's blob is written it is never touched again.
+  String _snapshotFileName(int version) => 'plans_snapshot_v$version.enc';
+
   Future<void> uploadSnapshot(Uint8List encryptedBytes, Map<String, dynamic> manifest) async {
     final headers = await _authHeaders();
+    final version = manifest['snapshot_version'] as int;
 
     // Encrypted snapshot first (write data before commit pointer)
-    final snapshotFileId = await _findOrCreateFile('plans_snapshot.enc', headers);
+    final snapshotFileId = await _findOrCreateFile(_snapshotFileName(version), headers);
     final snapshotUri = Uri.parse('https://www.googleapis.com/upload/drive/v3/files/$snapshotFileId')
         .replace(queryParameters: {'uploadType': 'media'});
     final snapshotResp = await http.patch(snapshotUri, headers: {
@@ -123,11 +133,40 @@ class GoogleDriveApi {
     if (manifestResp.statusCode != 200) {
       throw Exception('Manifest upload failed: ${manifestResp.statusCode}');
     }
+
+    // Best-effort cleanup of older snapshot blobs so appDataFolder doesn't
+    // grow unbounded. Never let this fail the sync itself.
+    try {
+      await _deleteOldSnapshots(keepVersion: version, headers: headers);
+    } catch (e, st) {
+      debugPrint('GoogleDriveApi.uploadSnapshot: cleanup failed: $e\n$st');
+    }
   }
 
-  Future<Uint8List> downloadSnapshot() async {
+  Future<void> _deleteOldSnapshots({required int keepVersion, required Map<String, String> headers}) async {
+    final uri = Uri.parse('https://www.googleapis.com/drive/v3/files').replace(queryParameters: {
+      'spaces': 'appDataFolder',
+      'q': "name contains 'plans_snapshot_v' and trashed=false",
+      'fields': 'files(id,name)',
+    });
+    final resp = await http.get(uri, headers: headers).timeout(_networkTimeout);
+    if (resp.statusCode != 200) return;
+    final files = (jsonDecode(resp.body)['files'] as List?) ?? [];
+    final keepName = _snapshotFileName(keepVersion);
+    for (final f in files) {
+      final name = f['name'] as String?;
+      final id = f['id'] as String?;
+      if (name == null || id == null || name == keepName) continue;
+      final delUri = Uri.parse('https://www.googleapis.com/drive/v3/files/$id');
+      await http.delete(delUri, headers: headers).timeout(_networkTimeout);
+    }
+  }
+
+  Future<Uint8List> downloadSnapshot(int version) async {
     final headers = await _authHeaders();
-    final fileId = await _getFileId('plans_snapshot.enc', headers);
+    var fileId = await _getFileId(_snapshotFileName(version), headers);
+    // Fallback for snapshots uploaded before version-named blobs existed.
+    fileId ??= await _getFileId('plans_snapshot.enc', headers);
     if (fileId == null) throw Exception('No snapshot on Drive');
     final uri = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId')
         .replace(queryParameters: {'alt': 'media'});

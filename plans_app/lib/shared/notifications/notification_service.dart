@@ -47,6 +47,30 @@ class NotificationService {
     }
   }
 
+  // OEM battery managers (Xiaomi/Oppo/Vivo/OnePlus/Samsung, etc.) can freeze
+  // or kill the app's process while it's backgrounded with the screen
+  // locked, which stops the alarm's own foreground service from ever
+  // starting -- no error, no notification, just total silence at the
+  // scheduled time. This is the one app-side lever against that.
+  static Future<bool> get isIgnoringBatteryOptimizations async {
+    if (kIsWeb || !Platform.isAndroid) return true;
+    try {
+      return await _nativeChannel.invokeMethod<bool>('isIgnoringBatteryOptimizations') ?? false;
+    } catch (e, st) {
+      debugPrint('NotificationService.isIgnoringBatteryOptimizations failed: $e\n$st');
+      return false;
+    }
+  }
+
+  static Future<void> requestIgnoreBatteryOptimizations() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      await _nativeChannel.invokeMethod('requestIgnoreBatteryOptimizations');
+    } catch (e, st) {
+      debugPrint('NotificationService.requestIgnoreBatteryOptimizations failed: $e\n$st');
+    }
+  }
+
   static Future<void> init() async {
     if (kIsWeb || _initialized) return;
     try {

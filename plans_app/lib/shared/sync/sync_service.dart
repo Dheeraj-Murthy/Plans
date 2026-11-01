@@ -160,7 +160,7 @@ class SyncService extends Notifier<SyncStatus> {
     final local = jsonDecode(await rust_sync.getSyncState());
     if (remoteVer <= (local['snapshot_version'] as int? ?? 0)) return;
 
-    final encrypted = await _driveApi.downloadSnapshot();
+    final encrypted = await _driveApi.downloadSnapshot(remoteVer);
     final userId = _driveApi.googleUserId;
     if (userId == null) throw Exception('Not authenticated');
     final dir = await getApplicationDocumentsDirectory();

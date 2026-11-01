@@ -2,8 +2,11 @@ package com.plansapp
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -60,6 +63,26 @@ class MainActivity : FlutterActivity() {
                 "setAlarmLockScreenVisible" -> {
                     val visible = call.arguments as? Boolean ?: false
                     setAlarmLockScreenVisible(visible)
+                    result.success(null)
+                }
+                "isIgnoringBatteryOptimizations" -> {
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    result.success(pm.isIgnoringBatteryOptimizations(packageName))
+                }
+                "requestIgnoreBatteryOptimizations" -> {
+                    // OEM battery managers (common on Xiaomi/Oppo/Vivo/OnePlus/Samsung)
+                    // can freeze or kill the app process while it's backgrounded and the
+                    // screen is locked, which stops the alarm's foreground service from
+                    // ever starting -- no crash, just total silence. This system dialog
+                    // is the one app-side lever against that; OEM-specific "autostart"
+                    // toggles still need the user to find them manually.
+                    try {
+                        val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                        intent.data = Uri.parse("package:$packageName")
+                        startActivity(intent)
+                    } catch (e: Exception) {
+                        // Some OEMs ship without this settings screen.
+                    }
                     result.success(null)
                 }
                 "checkPendingWidgetSync" -> {

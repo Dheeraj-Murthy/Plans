@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:plans_app/shared/notifications/notification_service.dart';
@@ -91,7 +93,47 @@ class _NotificationSection extends ConsumerWidget {
             );
           },
         ),
+        if (!kIsWeb && Platform.isAndroid) _BatteryOptimizationTile(),
       ],
+    );
+  }
+}
+
+class _BatteryOptimizationTile extends StatefulWidget {
+  @override
+  State<_BatteryOptimizationTile> createState() => _BatteryOptimizationTileState();
+}
+
+class _BatteryOptimizationTileState extends State<_BatteryOptimizationTile> {
+  late Future<bool> _ignoring = NotificationService.isIgnoringBatteryOptimizations;
+
+  Future<void> _fix() async {
+    await NotificationService.requestIgnoreBatteryOptimizations();
+    setState(() => _ignoring = NotificationService.isIgnoringBatteryOptimizations);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _ignoring,
+      builder: (context, snapshot) {
+        final exempt = snapshot.data ?? false;
+        return ListTile(
+          leading: Icon(
+            exempt ? Icons.battery_charging_full : Icons.battery_alert,
+            color: exempt ? Colors.green : Colors.red,
+          ),
+          title: const Text('Battery optimization'),
+          subtitle: Text(
+            exempt
+                ? 'Exempt — alarms can fire while locked'
+                : 'May block alarms while the screen is locked',
+          ),
+          trailing: exempt
+              ? null
+              : FilledButton.tonal(onPressed: _fix, child: const Text('Fix')),
+        );
+      },
     );
   }
 }
