@@ -104,15 +104,35 @@ class SyncService extends Notifier<SyncStatus> {
     if (!isAuthenticated || _isSyncing) return;
     _isSyncing = true;
     state = SyncStatus.syncing;
+
+    // Download and upload run as two independent attempts. A broken/stuck
+    // remote manifest would otherwise make _downloadIfNewer throw on every
+    // single sync forever, which previously aborted the whole method before
+    // _uploadIfNeeded ever ran -- so a device with a pending local fix could
+    // never publish a corrected snapshot to overwrite the bad remote state.
+    // Retry would just repeat the same failure endlessly.
+    Object? downloadError;
     try {
       await _downloadIfNewer();
+    } catch (e, st) {
+      downloadError = e;
+      debugPrint('SyncService._doSync download failed: $e\n$st');
+    }
+
+    try {
       await _uploadIfNeeded();
-      state = SyncStatus.idle;
+      if (downloadError != null) {
+        state = SyncStatus.error;
+        _lastError = downloadError.toString();
+      } else {
+        state = SyncStatus.idle;
+      }
     } catch (e, st) {
       state = SyncStatus.error;
       _lastError = e.toString();
-      debugPrint('SyncService._doSync failed: $e\n$st');
+      debugPrint('SyncService._doSync upload failed: $e\n$st');
     }
+
     _isSyncing = false;
   }
 
