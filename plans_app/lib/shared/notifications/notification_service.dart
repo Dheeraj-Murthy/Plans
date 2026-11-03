@@ -449,12 +449,23 @@ class NotificationService {
   static Future<void> rescheduleAll(List<Task> tasks) async {
     if (!_initialized) return;
     if (!Platform.isMacOS) {
-      _currentFullScreenAlarmId = null;
+      // Never stop the alarm that's ringing right now. rescheduleAll runs on
+      // every app resume, including the resume caused by the ringing
+      // alarm's own full-screen-intent cold launch -- blindly stopping
+      // every scheduled id here used to kill that alarm's native service
+      // (and its looping audio) seconds after it started, well before the
+      // user had unlocked the phone to see or dismiss it.
+      final ringingId = _currentFullScreenAlarmId;
+      final ringingInfo = ringingId != null ? _alarmInfoStore.alarmInfos[ringingId] : null;
       for (final id in _alarmInfoStore.alarmInfos.keys) {
+        if (id == ringingId) continue;
         await Alarm.stop(id);
         await _fln.cancel(id: id);
       }
       _alarmInfoStore.alarmInfos.clear();
+      if (ringingId != null && ringingInfo != null) {
+        _alarmInfoStore.alarmInfos[ringingId] = ringingInfo;
+      }
       await _fln.cancelAll();
     }
     final now = DateTime.now();

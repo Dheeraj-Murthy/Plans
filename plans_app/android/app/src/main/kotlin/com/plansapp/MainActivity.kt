@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.WindowManager
+import com.gdelataillade.alarm.alarm.AlarmService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -19,6 +20,19 @@ class MainActivity : FlutterActivity() {
     private var deeplinkChannel: MethodChannel? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // The alarm package's full-screen-intent notification can cold-launch
+        // this Activity straight over the lock screen -- but only if the
+        // show-over-keyguard window flags are already set before the window
+        // attaches. Setting them later via MethodChannel (once Dart has
+        // booted and pushed AlarmFullScreenScreen) is too late for a cold
+        // launch: Android already decided to place the window behind the
+        // keyguard, so the alarm plays but nothing is visible until the user
+        // unlocks and reopens the app by hand. AlarmService.ringingAlarmIds
+        // is the native plugin's own live list of ids currently ringing, so
+        // this check works regardless of which Intent triggered the launch.
+        if (AlarmService.ringingAlarmIds.isNotEmpty()) {
+            setAlarmLockScreenVisible(true)
+        }
         super.onCreate(savedInstanceState)
         latestIntent = intent
     }

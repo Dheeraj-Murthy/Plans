@@ -100,6 +100,14 @@ class _AlarmFullScreenScreenState extends ConsumerState<AlarmFullScreenScreen> {
   Future<void> _complete() async {
     await Alarm.stop(widget.alarmId);
     if (!mounted) return;
+    // This screen can be shown by a cold-launched engine (the alarm's
+    // full-screen intent launching MainActivity fresh) -- toggleTask()
+    // no-ops if tasksProvider's async first DB load hasn't finished yet,
+    // since the task isn't in its in-memory state until then. Without this
+    // wait, tapping Complete right after the phone unlocks could silently
+    // do nothing.
+    await ref.read(tasksProvider.notifier).firstLoad;
+    if (!mounted) return;
     ref.read(tasksProvider.notifier).toggleTask(widget.taskId);
     if (!mounted) return;
     Navigator.of(context).pop();
