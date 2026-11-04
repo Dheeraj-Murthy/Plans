@@ -49,6 +49,20 @@
               android:resource="@style/NormalTheme"
               />
         </activity>
+        <activity
+            android:name=".QuickAddTransactionActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/QuickAddTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+        </activity>
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -63,6 +77,17 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/plans_widget_info" />
+        </receiver>
+        <receiver
+            android:name=".widget.PlansBudgetWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_OPTIONS_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/plans_budget_widget_info" />
         </receiver>
         <receiver
             android:name=".widget.WidgetInteractionReceiver"

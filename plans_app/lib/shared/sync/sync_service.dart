@@ -8,6 +8,9 @@ import 'package:plans_app/shared/sync/google_drive_api.dart';
 import 'package:plans_app/shared/sync/sync_key_manager.dart';
 import 'package:plans_app/features/tasks/providers/task_provider.dart';
 import 'package:plans_app/features/projects/providers/project_provider.dart';
+import 'package:plans_app/features/budget/providers/expense_category_provider.dart';
+import 'package:plans_app/features/budget/providers/budget_transaction_provider.dart';
+import 'package:plans_app/features/budget/providers/budget_settings_provider.dart';
 import 'package:plans_app/src/rust/api/sync.dart' as rust_sync;
 
 enum SyncStatus { disconnected, authenticating, syncing, idle, error }
@@ -191,6 +194,8 @@ class SyncService extends Notifier<SyncStatus> {
     // about-to-be-replaced DB file and be lost.
     final localTasks = await _db.getTasks();
     final localProjects = await _db.getProjects();
+    final localExpenseCategories = await _db.getExpenseCategories();
+    final localBudgetTransactions = await _db.getBudgetTransactions();
     final localDeletedIds = Set<String>.from(DatabaseService.pendingLocalDeletions);
 
     await rust_sync.installSnapshot(
@@ -220,6 +225,20 @@ class SyncService extends Notifier<SyncStatus> {
           debugPrint('SyncService: upsertProject failed for ${project.id}: $e\n$st');
         }
       }
+      for (final category in localExpenseCategories) {
+        try {
+          await _db.upsertExpenseCategory(category);
+        } catch (e, st) {
+          debugPrint('SyncService: upsertExpenseCategory failed for ${category.id}: $e\n$st');
+        }
+      }
+      for (final transaction in localBudgetTransactions) {
+        try {
+          await _db.upsertBudgetTransaction(transaction);
+        } catch (e, st) {
+          debugPrint('SyncService: upsertBudgetTransaction failed for ${transaction.id}: $e\n$st');
+        }
+      }
 
       // Re-apply local soft-deletes that the remote snapshot may have overwritten.
       for (final id in localDeletedIds) {
@@ -236,6 +255,9 @@ class SyncService extends Notifier<SyncStatus> {
       await DatabaseService.clearPendingDeletions(localDeletedIds);
       ref.invalidate(tasksProvider);
       ref.invalidate(projectsProvider);
+      ref.invalidate(expenseCategoriesProvider);
+      ref.invalidate(budgetTransactionsProvider);
+      ref.invalidate(budgetSettingsProvider);
     }
 
     _lastSyncedFrom = '${manifest['device_name'] ?? 'device'} (v$remoteVer)';

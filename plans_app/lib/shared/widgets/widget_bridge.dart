@@ -5,6 +5,28 @@ import '../../features/projects/models/project.dart';
 
 class WidgetBridge {
   static const _widgetName = 'PlansAppWidgetProvider';
+  static const _budgetWidgetName = 'PlansBudgetWidgetProvider';
+
+  static Future<void> notifyBudgetUpdate({
+    required double balance,
+    required String currencySymbol,
+  }) async {
+    try {
+      await HomeWidget.saveWidgetData<String>(
+        'widget_budget_balance',
+        balance.toStringAsFixed(2),
+      );
+      await HomeWidget.saveWidgetData<String>(
+        'widget_budget_currency',
+        currencySymbol,
+      );
+      await HomeWidget.updateWidget(
+        androidName: _budgetWidgetName,
+        qualifiedAndroidName: 'com.plansapp.widget.$_budgetWidgetName',
+        iOSName: 'PlansBudgetWidget',
+      );
+    } catch (_) {}
+  }
 
   static Future<void> notifyUpdate({
     List<Task>? allTasks,

@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api.dart';
+import 'api/budget.dart';
 import 'api/projects.dart';
 import 'api/subtasks.dart';
 import 'api/sync.dart';
@@ -33,10 +34,28 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_box_autoadd_i_64(dynamic raw);
 
   @protected
+  BudgetSettings dco_decode_budget_settings(dynamic raw);
+
+  @protected
+  BudgetTransaction dco_decode_budget_transaction(dynamic raw);
+
+  @protected
+  ExpenseCategory dco_decode_expense_category(dynamic raw);
+
+  @protected
+  double dco_decode_f_64(dynamic raw);
+
+  @protected
   PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
   List<String> dco_decode_list_String(dynamic raw);
+
+  @protected
+  List<BudgetTransaction> dco_decode_list_budget_transaction(dynamic raw);
+
+  @protected
+  List<ExpenseCategory> dco_decode_list_expense_category(dynamic raw);
 
   @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
@@ -93,10 +112,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  BudgetSettings sse_decode_budget_settings(SseDeserializer deserializer);
+
+  @protected
+  BudgetTransaction sse_decode_budget_transaction(SseDeserializer deserializer);
+
+  @protected
+  ExpenseCategory sse_decode_expense_category(SseDeserializer deserializer);
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer);
+
+  @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+  @protected
+  List<BudgetTransaction> sse_decode_list_budget_transaction(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ExpenseCategory> sse_decode_list_expense_category(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
@@ -163,10 +204,43 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_budget_settings(
+    BudgetSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_budget_transaction(
+    BudgetTransaction self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_expense_category(
+    ExpenseCategory self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer);
+
+  @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_budget_transaction(
+    List<BudgetTransaction> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_expense_category(
+    List<ExpenseCategory> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);

@@ -46,3 +46,33 @@ pub struct SubtaskCount {
     pub total: i64,
     pub completed: i64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpenseCategory {
+    pub id: String,
+    pub name: String,
+    pub color_index: i64,
+    #[serde(default)]
+    pub updated_at: i64,
+}
+
+/// `kind` is "topup" or "expense" — the DB column is named `type` (a Rust
+/// keyword, so it can't be the field name here).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetTransaction {
+    pub id: String,
+    pub kind: String,
+    pub amount: f64,
+    pub category_id: Option<String>,
+    pub note: Option<String>,
+    pub occurred_at: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BudgetSettings {
+    pub reset_at: i64,
+    pub currency_symbol: String,
+    pub updated_at: i64,
+}

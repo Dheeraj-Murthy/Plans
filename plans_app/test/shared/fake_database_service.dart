@@ -1,6 +1,9 @@
 import 'package:plans_app/features/projects/models/project.dart';
 import 'package:plans_app/features/tasks/models/task.dart';
 import 'package:plans_app/features/tasks/models/subtask.dart';
+import 'package:plans_app/features/budget/models/expense_category.dart';
+import 'package:plans_app/features/budget/models/budget_transaction.dart';
+import 'package:plans_app/features/budget/models/budget_settings.dart';
 import 'package:plans_app/shared/database/database_service.dart';
 import 'package:uuid/uuid.dart';
 
@@ -8,8 +11,12 @@ class FakeDatabaseService extends DatabaseService {
   final List<Task> _tasks = [];
   final List<Project> _projects = [];
   final List<Subtask> _subtasks = [];
+  final List<ExpenseCategory> _categories = [];
+  final List<BudgetTransaction> _transactions = [];
+  BudgetSettings _settings = BudgetSettings();
 
   void seedProject(Project p) => _projects.add(p);
+  void seedExpenseCategory(ExpenseCategory c) => _categories.add(c);
 
   @override
   Future<List<Task>> getTasks() async => List.from(_tasks);
@@ -155,5 +162,105 @@ class FakeDatabaseService extends DatabaseService {
     } else {
       _projects.add(project);
     }
+  }
+
+  // ── Budget: expense categories ──────────────────────────────────────
+
+  @override
+  Future<List<ExpenseCategory>> getExpenseCategories() async => List.from(_categories);
+
+  @override
+  Future<ExpenseCategory> insertExpenseCategory({
+    required String name,
+    required int colorIndex,
+  }) async {
+    final category = ExpenseCategory(id: const Uuid().v4(), name: name, colorIndex: colorIndex);
+    _categories.add(category);
+    return category;
+  }
+
+  @override
+  Future<void> updateExpenseCategory(ExpenseCategory category) async {
+    final idx = _categories.indexWhere((c) => c.id == category.id);
+    if (idx >= 0) _categories[idx] = category;
+  }
+
+  @override
+  Future<void> deleteExpenseCategory(String id) async {
+    _categories.removeWhere((c) => c.id == id);
+  }
+
+  @override
+  Future<void> upsertExpenseCategory(ExpenseCategory category) async {
+    final idx = _categories.indexWhere((c) => c.id == category.id);
+    if (idx >= 0) {
+      _categories[idx] = category;
+    } else {
+      _categories.add(category);
+    }
+  }
+
+  // ── Budget: transactions ─────────────────────────────────────────────
+
+  @override
+  Future<List<BudgetTransaction>> getBudgetTransactions() async => List.from(_transactions);
+
+  @override
+  Future<BudgetTransaction> insertBudgetTransaction({
+    required TransactionType type,
+    required double amount,
+    String? categoryId,
+    String? note,
+    DateTime? occurredAt,
+  }) async {
+    final transaction = BudgetTransaction(
+      id: const Uuid().v4(),
+      type: type,
+      amount: amount,
+      categoryId: type == TransactionType.expense ? (categoryId ?? 'other') : null,
+      note: note,
+      occurredAt: occurredAt,
+    );
+    _transactions.insert(0, transaction);
+    return transaction;
+  }
+
+  @override
+  Future<void> updateBudgetTransaction(BudgetTransaction transaction) async {
+    final idx = _transactions.indexWhere((t) => t.id == transaction.id);
+    if (idx >= 0) _transactions[idx] = transaction;
+  }
+
+  @override
+  Future<void> deleteBudgetTransaction(String id) async {
+    _transactions.removeWhere((t) => t.id == id);
+  }
+
+  @override
+  Future<void> upsertBudgetTransaction(BudgetTransaction transaction) async {
+    final idx = _transactions.indexWhere((t) => t.id == transaction.id);
+    if (idx >= 0) {
+      _transactions[idx] = transaction;
+    } else {
+      _transactions.add(transaction);
+    }
+  }
+
+  // ── Budget: settings ──────────────────────────────────────────────────
+
+  @override
+  Future<BudgetSettings> getBudgetSettings() async => _settings;
+
+  @override
+  Future<BudgetSettings> updateBudgetSettings({required String currencySymbol}) async {
+    _settings = _settings.copyWith(currencySymbol: currencySymbol, updatedAt: DateTime.now());
+    return _settings;
+  }
+
+  @override
+  Future<DateTime> resetBudget() async {
+    final now = DateTime.now();
+    _settings = _settings.copyWith(resetAt: now, updatedAt: now);
+    return now;
   }
 }

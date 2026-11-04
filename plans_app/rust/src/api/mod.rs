@@ -1,3 +1,4 @@
+pub mod budget;
 pub mod projects;
 pub mod tasks;
 pub mod subtasks;

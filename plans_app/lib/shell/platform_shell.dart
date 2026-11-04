@@ -6,9 +6,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/tasks/screens/task_list_screen.dart';
 import '../features/tasks/widgets/add_task_sheet.dart';
+import '../features/budget/screens/budget_screen.dart';
+import '../features/budget/widgets/add_transaction_sheet.dart';
 import '../features/projects/widgets/slim_sidebar.dart';
 import '../features/projects/providers/project_provider.dart';
 import '../features/tasks/providers/task_provider.dart';
+import 'main_tab_provider.dart';
 import '../shared/widgets/sidebar/sidebar_item.dart';
 import '../shared/widgets/sidebar/sidebar_section_header.dart';
 import '../shared/widgets/sidebar/add_project_button.dart';
@@ -61,6 +64,8 @@ class _PlatformAdaptiveShellState
         if (taskId != null && taskId.isNotEmpty) {
           unawaited(_openTask(taskId));
         }
+      } else if (intent?['action'] == 'open_budget') {
+        ref.read(mainTabProvider.notifier).select(MainTab.budget);
       }
     });
   }
@@ -96,6 +101,8 @@ class _PlatformAdaptiveShellState
       if (taskId != null && taskId.isNotEmpty) {
         unawaited(_openTask(taskId));
       }
+    } else if (call.method == 'openBudget') {
+      ref.read(mainTabProvider.notifier).select(MainTab.budget);
     }
   }
 
@@ -248,16 +255,21 @@ class _PlatformAdaptiveShellState
 class _DesktopShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final mainTab = ref.watch(mainTabProvider);
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: const Column(
+      body: Column(
         children: [
-          UpdateBanner(),
+          const UpdateBanner(),
           Expanded(
             child: Row(
               children: [
-                SlimSidebar(),
-                Expanded(child: TaskListScreen()),
+                const SlimSidebar(),
+                Expanded(
+                  child: mainTab == MainTab.budget
+                      ? const BudgetScreen()
+                      : const TaskListScreen(),
+                ),
               ],
             ),
           ),
@@ -272,26 +284,31 @@ class _MobileShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final SidebarSelection selection = ref.watch(sidebarSelectionProvider);
     final projects = ref.watch(projectsProvider);
+    final mainTab = ref.watch(mainTabProvider);
     // final completed =
     //     ref.watch(filteredTasksProvider).where((t) => t.isCompleted).toList();
 
-    final title = switch (selection) {
-      ViewSelection(:final view) => switch (view) {
-          ViewType.inbox => 'Inbox',
-          ViewType.timeline => 'Timeline',
-          ViewType.today => 'Today',
-          ViewType.completed => 'Completed',
-        },
-      ProjectSelection(:final projectId) =>
-        projects.where((p) => p.id == projectId).firstOrNull?.name ?? 'Tasks',
-    };
+    final title = mainTab == MainTab.budget
+        ? 'Budget'
+        : switch (selection) {
+            ViewSelection(:final view) => switch (view) {
+                ViewType.inbox => 'Inbox',
+                ViewType.timeline => 'Timeline',
+                ViewType.today => 'Today',
+                ViewType.completed => 'Completed',
+              },
+            ProjectSelection(:final projectId) =>
+              projects.where((p) => p.id == projectId).firstOrNull?.name ?? 'Tasks',
+          };
 
-    final navIndex = switch (selection) {
-      ViewSelection(view: ViewType.inbox) => 0,
-      ViewSelection(view: ViewType.timeline) => 1,
-      ViewSelection(view: ViewType.completed) => 2,
-      _ => 0,
-    };
+    final navIndex = mainTab == MainTab.budget
+        ? 3
+        : switch (selection) {
+            ViewSelection(view: ViewType.inbox) => 0,
+            ViewSelection(view: ViewType.timeline) => 1,
+            ViewSelection(view: ViewType.completed) => 2,
+            _ => 0,
+          };
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -308,6 +325,11 @@ class _MobileShell extends ConsumerWidget {
           ),
         ),
         actions: [
+          if (mainTab == MainTab.budget)
+            IconButton(
+              icon: const Icon(Icons.more_horiz_rounded, color: AppColors.textSecondary),
+              onPressed: () => showBudgetSettingsSheet(context, ref),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
@@ -318,10 +340,12 @@ class _MobileShell extends ConsumerWidget {
         ],
       ),
       drawer: _MobileDrawer(),
-      body: const Column(
+      body: Column(
         children: [
-          UpdateBanner(),
-          Expanded(child: TaskListScreen()),
+          const UpdateBanner(),
+          Expanded(
+            child: mainTab == MainTab.budget ? const BudgetScreen() : const TaskListScreen(),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -331,7 +355,8 @@ class _MobileShell extends ConsumerWidget {
           context: context,
           isScrollControlled: true,
           backgroundColor: AppColors.surface,
-          builder: (_) => const AddTaskSheet(),
+          builder: (_) =>
+              mainTab == MainTab.budget ? const AddTransactionSheet() : const AddTaskSheet(),
         ),
         child: const Icon(Icons.add_rounded),
       ),
@@ -346,17 +371,22 @@ class _MobileShell extends ConsumerWidget {
         onTap: (index) {
           switch (index) {
             case 0:
+              ref.read(mainTabProvider.notifier).select(MainTab.tasks);
               ref
                   .read(sidebarSelectionProvider.notifier)
                   .select(const ViewSelection(ViewType.inbox));
             case 1:
+              ref.read(mainTabProvider.notifier).select(MainTab.tasks);
               ref
                   .read(sidebarSelectionProvider.notifier)
                   .select(const ViewSelection(ViewType.timeline));
             case 2:
+              ref.read(mainTabProvider.notifier).select(MainTab.tasks);
               ref
                   .read(sidebarSelectionProvider.notifier)
                   .select(const ViewSelection(ViewType.completed));
+            case 3:
+              ref.read(mainTabProvider.notifier).select(MainTab.budget);
           }
         },
         items: const [
@@ -372,6 +402,10 @@ class _MobileShell extends ConsumerWidget {
             icon: Icon(Icons.check_circle_outline_rounded),
             label: 'Done',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.account_balance_wallet_rounded),
+            label: 'Budget',
+          ),
         ],
       ),
     );
@@ -383,6 +417,7 @@ class _MobileDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final projects = ref.watch(projectsProvider);
     final SidebarSelection selection = ref.watch(sidebarSelectionProvider);
+    final mainTab = ref.watch(mainTabProvider);
     final totalTasks =
         ref.watch(tasksProvider).where((t) => !t.isCompleted).length;
     final timelineCount = ref.watch(timelineCountProvider);
@@ -414,9 +449,11 @@ class _MobileDrawer extends ConsumerWidget {
               icon: Icons.inbox_rounded,
               label: 'Inbox',
               count: totalTasks,
-              isActive: selection is ViewSelection &&
+              isActive: mainTab == MainTab.tasks &&
+                  selection is ViewSelection &&
                   selection.view == ViewType.inbox,
               onTap: () {
+                ref.read(mainTabProvider.notifier).select(MainTab.tasks);
                 ref
                     .read(sidebarSelectionProvider.notifier)
                     .select(const ViewSelection(ViewType.inbox));
@@ -427,9 +464,11 @@ class _MobileDrawer extends ConsumerWidget {
               icon: Icons.calendar_month_rounded,
               label: 'Timeline',
               count: timelineCount,
-              isActive: selection is ViewSelection &&
+              isActive: mainTab == MainTab.tasks &&
+                  selection is ViewSelection &&
                   selection.view == ViewType.timeline,
               onTap: () {
+                ref.read(mainTabProvider.notifier).select(MainTab.tasks);
                 ref
                     .read(sidebarSelectionProvider.notifier)
                     .select(const ViewSelection(ViewType.timeline));
@@ -440,12 +479,23 @@ class _MobileDrawer extends ConsumerWidget {
               icon: Icons.check_circle_outline_rounded,
               label: 'Completed',
               count: completedCount,
-              isActive: selection is ViewSelection &&
+              isActive: mainTab == MainTab.tasks &&
+                  selection is ViewSelection &&
                   selection.view == ViewType.completed,
               onTap: () {
+                ref.read(mainTabProvider.notifier).select(MainTab.tasks);
                 ref
                     .read(sidebarSelectionProvider.notifier)
                     .select(const ViewSelection(ViewType.completed));
+                close();
+              },
+            ),
+            SidebarItem(
+              icon: Icons.account_balance_wallet_rounded,
+              label: 'Budget',
+              isActive: mainTab == MainTab.budget,
+              onTap: () {
+                ref.read(mainTabProvider.notifier).select(MainTab.budget);
                 close();
               },
             ),

@@ -6,6 +6,108 @@
 import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
+class BudgetSettings {
+  final PlatformInt64 resetAt;
+  final String currencySymbol;
+  final PlatformInt64 updatedAt;
+
+  const BudgetSettings({
+    required this.resetAt,
+    required this.currencySymbol,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      resetAt.hashCode ^ currencySymbol.hashCode ^ updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BudgetSettings &&
+          runtimeType == other.runtimeType &&
+          resetAt == other.resetAt &&
+          currencySymbol == other.currencySymbol &&
+          updatedAt == other.updatedAt;
+}
+
+/// `kind` is "topup" or "expense" — the DB column is named `type` (a Rust
+/// keyword, so it can't be the field name here).
+class BudgetTransaction {
+  final String id;
+  final String kind;
+  final double amount;
+  final String? categoryId;
+  final String? note;
+  final PlatformInt64 occurredAt;
+  final PlatformInt64 createdAt;
+  final PlatformInt64 updatedAt;
+
+  const BudgetTransaction({
+    required this.id,
+    required this.kind,
+    required this.amount,
+    this.categoryId,
+    this.note,
+    required this.occurredAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^
+      kind.hashCode ^
+      amount.hashCode ^
+      categoryId.hashCode ^
+      note.hashCode ^
+      occurredAt.hashCode ^
+      createdAt.hashCode ^
+      updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BudgetTransaction &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          kind == other.kind &&
+          amount == other.amount &&
+          categoryId == other.categoryId &&
+          note == other.note &&
+          occurredAt == other.occurredAt &&
+          createdAt == other.createdAt &&
+          updatedAt == other.updatedAt;
+}
+
+class ExpenseCategory {
+  final String id;
+  final String name;
+  final PlatformInt64 colorIndex;
+  final PlatformInt64 updatedAt;
+
+  const ExpenseCategory({
+    required this.id,
+    required this.name,
+    required this.colorIndex,
+    required this.updatedAt,
+  });
+
+  @override
+  int get hashCode =>
+      id.hashCode ^ name.hashCode ^ colorIndex.hashCode ^ updatedAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ExpenseCategory &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          colorIndex == other.colorIndex &&
+          updatedAt == other.updatedAt;
+}
+
 class Project {
   final String id;
   final String name;

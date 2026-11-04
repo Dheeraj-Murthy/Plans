@@ -4,6 +4,7 @@
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api.dart';
+import 'api/budget.dart';
 import 'api/projects.dart';
 import 'api/subtasks.dart';
 import 'api/sync.dart';
@@ -69,7 +70,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1880105206;
+  int get rustContentHash => 1130979738;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -82,6 +83,19 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 
 abstract class RustLibApi extends BaseApi {
   Future<void> crateApiTasksClearCompleted();
+
+  Future<BudgetTransaction> crateApiBudgetCreateBudgetTransaction({
+    required String kind,
+    required double amount,
+    String? categoryId,
+    String? note,
+    required PlatformInt64 occurredAt,
+  });
+
+  Future<ExpenseCategory> crateApiBudgetCreateExpenseCategory({
+    required String name,
+    required PlatformInt64 colorIndex,
+  });
 
   Future<Project> crateApiProjectsCreateProject({
     required String name,
@@ -112,6 +126,10 @@ abstract class RustLibApi extends BaseApi {
     String? recurrence,
   });
 
+  Future<void> crateApiBudgetDeleteBudgetTransaction({required String id});
+
+  Future<void> crateApiBudgetDeleteExpenseCategory({required String id});
+
   Future<void> crateApiProjectsDeleteProject({required String id});
 
   Future<void> crateApiSubtasksDeleteSubtask({required String id});
@@ -121,6 +139,12 @@ abstract class RustLibApi extends BaseApi {
   Future<List<Project>> crateApiProjectsGetAllProjects();
 
   Future<List<Task>> crateApiTasksGetAllTasks();
+
+  Future<BudgetSettings> crateApiBudgetGetBudgetSettings();
+
+  Future<List<BudgetTransaction>> crateApiBudgetGetBudgetTransactions();
+
+  Future<List<ExpenseCategory>> crateApiBudgetGetExpenseCategories();
 
   Future<String> crateApiSyncGetOrCreateDeviceId();
 
@@ -141,9 +165,25 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiTasksReorderTasks({required List<String> taskIds});
 
+  Future<PlatformInt64> crateApiBudgetResetBudget();
+
   Future<void> crateApiTasksRestoreTask({required String id});
 
   Future<void> crateApiSyncSetSyncState({required String json});
+
+  Future<BudgetSettings> crateApiBudgetUpdateBudgetSettings({
+    required String currencySymbol,
+  });
+
+  Future<void> crateApiBudgetUpdateBudgetTransaction({
+    required String transactionJson,
+  });
+
+  Future<ExpenseCategory> crateApiBudgetUpdateExpenseCategory({
+    required String id,
+    required String name,
+    required PlatformInt64 colorIndex,
+  });
 
   Future<Project> crateApiProjectsUpdateProject({
     required String id,
@@ -154,6 +194,14 @@ abstract class RustLibApi extends BaseApi {
   Future<Subtask> crateApiSubtasksUpdateSubtask({required String subtaskJson});
 
   Future<Task> crateApiTasksUpdateTask({required String taskJson});
+
+  Future<void> crateApiBudgetUpsertBudgetTransaction({
+    required String transactionJson,
+  });
+
+  Future<void> crateApiBudgetUpsertExpenseCategory({
+    required String categoryJson,
+  });
 
   Future<void> crateApiProjectsUpsertProject({required String projectJson});
 
@@ -196,6 +244,82 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "clear_completed", argNames: []);
 
   @override
+  Future<BudgetTransaction> crateApiBudgetCreateBudgetTransaction({
+    required String kind,
+    required double amount,
+    String? categoryId,
+    String? note,
+    required PlatformInt64 occurredAt,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(kind, serializer);
+          sse_encode_f_64(amount, serializer);
+          sse_encode_opt_String(categoryId, serializer);
+          sse_encode_opt_String(note, serializer);
+          sse_encode_i_64(occurredAt, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_budget_transaction,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetCreateBudgetTransactionConstMeta,
+        argValues: [kind, amount, categoryId, note, occurredAt],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetCreateBudgetTransactionConstMeta =>
+      const TaskConstMeta(
+        debugName: "create_budget_transaction",
+        argNames: ["kind", "amount", "categoryId", "note", "occurredAt"],
+      );
+
+  @override
+  Future<ExpenseCategory> crateApiBudgetCreateExpenseCategory({
+    required String name,
+    required PlatformInt64 colorIndex,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(name, serializer);
+          sse_encode_i_64(colorIndex, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 3,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_expense_category,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetCreateExpenseCategoryConstMeta,
+        argValues: [name, colorIndex],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetCreateExpenseCategoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "create_expense_category",
+        argNames: ["name", "colorIndex"],
+      );
+
+  @override
   Future<Project> crateApiProjectsCreateProject({
     required String name,
     required PlatformInt64 colorIndex,
@@ -209,7 +333,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 2,
+            funcId: 4,
             port: port_,
           );
         },
@@ -252,7 +376,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 3,
+            funcId: 5,
             port: port_,
           );
         },
@@ -300,7 +424,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 6,
             port: port_,
           );
         },
@@ -345,7 +469,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 7,
             port: port_,
           );
         },
@@ -382,6 +506,68 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<void> crateApiBudgetDeleteBudgetTransaction({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 8,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetDeleteBudgetTransactionConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetDeleteBudgetTransactionConstMeta =>
+      const TaskConstMeta(
+        debugName: "delete_budget_transaction",
+        argNames: ["id"],
+      );
+
+  @override
+  Future<void> crateApiBudgetDeleteExpenseCategory({required String id}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetDeleteExpenseCategoryConstMeta,
+        argValues: [id],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetDeleteExpenseCategoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "delete_expense_category",
+        argNames: ["id"],
+      );
+
+  @override
   Future<void> crateApiProjectsDeleteProject({required String id}) {
     return handler.executeNormal(
       NormalTask(
@@ -391,7 +577,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 6,
+            funcId: 10,
             port: port_,
           );
         },
@@ -419,7 +605,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 11,
             port: port_,
           );
         },
@@ -447,7 +633,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 12,
             port: port_,
           );
         },
@@ -474,7 +660,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 13,
             port: port_,
           );
         },
@@ -501,7 +687,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 14,
             port: port_,
           );
         },
@@ -520,6 +706,87 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "get_all_tasks", argNames: []);
 
   @override
+  Future<BudgetSettings> crateApiBudgetGetBudgetSettings() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_budget_settings,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetGetBudgetSettingsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetGetBudgetSettingsConstMeta =>
+      const TaskConstMeta(debugName: "get_budget_settings", argNames: []);
+
+  @override
+  Future<List<BudgetTransaction>> crateApiBudgetGetBudgetTransactions() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 16,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_budget_transaction,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetGetBudgetTransactionsConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetGetBudgetTransactionsConstMeta =>
+      const TaskConstMeta(debugName: "get_budget_transactions", argNames: []);
+
+  @override
+  Future<List<ExpenseCategory>> crateApiBudgetGetExpenseCategories() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 17,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_expense_category,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetGetExpenseCategoriesConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetGetExpenseCategoriesConstMeta =>
+      const TaskConstMeta(debugName: "get_expense_categories", argNames: []);
+
+  @override
   Future<String> crateApiSyncGetOrCreateDeviceId() {
     return handler.executeNormal(
       NormalTask(
@@ -528,7 +795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 11,
+            funcId: 18,
             port: port_,
           );
         },
@@ -555,7 +822,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 12,
+            funcId: 19,
             port: port_,
           );
         },
@@ -583,7 +850,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 13,
+            funcId: 20,
             port: port_,
           );
         },
@@ -610,7 +877,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 14,
+            funcId: 21,
             port: port_,
           );
         },
@@ -638,7 +905,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 15,
+            funcId: 22,
             port: port_,
           );
         },
@@ -674,7 +941,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 16,
+            funcId: 23,
             port: port_,
           );
         },
@@ -705,7 +972,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 17,
+            funcId: 24,
             port: port_,
           );
         },
@@ -724,6 +991,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "reorder_tasks", argNames: ["taskIds"]);
 
   @override
+  Future<PlatformInt64> crateApiBudgetResetBudget() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 25,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_i_64,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetResetBudgetConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetResetBudgetConstMeta =>
+      const TaskConstMeta(debugName: "reset_budget", argNames: []);
+
+  @override
   Future<void> crateApiTasksRestoreTask({required String id}) {
     return handler.executeNormal(
       NormalTask(
@@ -733,7 +1027,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 18,
+            funcId: 26,
             port: port_,
           );
         },
@@ -761,7 +1055,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 19,
+            funcId: 27,
             port: port_,
           );
         },
@@ -780,6 +1074,109 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "set_sync_state", argNames: ["json"]);
 
   @override
+  Future<BudgetSettings> crateApiBudgetUpdateBudgetSettings({
+    required String currencySymbol,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(currencySymbol, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 28,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_budget_settings,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetUpdateBudgetSettingsConstMeta,
+        argValues: [currencySymbol],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetUpdateBudgetSettingsConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_budget_settings",
+        argNames: ["currencySymbol"],
+      );
+
+  @override
+  Future<void> crateApiBudgetUpdateBudgetTransaction({
+    required String transactionJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(transactionJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 29,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetUpdateBudgetTransactionConstMeta,
+        argValues: [transactionJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetUpdateBudgetTransactionConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_budget_transaction",
+        argNames: ["transactionJson"],
+      );
+
+  @override
+  Future<ExpenseCategory> crateApiBudgetUpdateExpenseCategory({
+    required String id,
+    required String name,
+    required PlatformInt64 colorIndex,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(id, serializer);
+          sse_encode_String(name, serializer);
+          sse_encode_i_64(colorIndex, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 30,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_expense_category,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetUpdateExpenseCategoryConstMeta,
+        argValues: [id, name, colorIndex],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetUpdateExpenseCategoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "update_expense_category",
+        argNames: ["id", "name", "colorIndex"],
+      );
+
+  @override
   Future<Project> crateApiProjectsUpdateProject({
     required String id,
     required String name,
@@ -795,7 +1192,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 20,
+            funcId: 31,
             port: port_,
           );
         },
@@ -826,7 +1223,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 21,
+            funcId: 32,
             port: port_,
           );
         },
@@ -857,7 +1254,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 22,
+            funcId: 33,
             port: port_,
           );
         },
@@ -876,6 +1273,72 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "update_task", argNames: ["taskJson"]);
 
   @override
+  Future<void> crateApiBudgetUpsertBudgetTransaction({
+    required String transactionJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(transactionJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 34,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetUpsertBudgetTransactionConstMeta,
+        argValues: [transactionJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetUpsertBudgetTransactionConstMeta =>
+      const TaskConstMeta(
+        debugName: "upsert_budget_transaction",
+        argNames: ["transactionJson"],
+      );
+
+  @override
+  Future<void> crateApiBudgetUpsertExpenseCategory({
+    required String categoryJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(categoryJson, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 35,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_String,
+        ),
+        constMeta: kCrateApiBudgetUpsertExpenseCategoryConstMeta,
+        argValues: [categoryJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiBudgetUpsertExpenseCategoryConstMeta =>
+      const TaskConstMeta(
+        debugName: "upsert_expense_category",
+        argNames: ["categoryJson"],
+      );
+
+  @override
   Future<void> crateApiProjectsUpsertProject({required String projectJson}) {
     return handler.executeNormal(
       NormalTask(
@@ -885,7 +1348,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 23,
+            funcId: 36,
             port: port_,
           );
         },
@@ -916,7 +1379,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 24,
+            funcId: 37,
             port: port_,
           );
         },
@@ -953,6 +1416,57 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BudgetSettings dco_decode_budget_settings(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return BudgetSettings(
+      resetAt: dco_decode_i_64(arr[0]),
+      currencySymbol: dco_decode_String(arr[1]),
+      updatedAt: dco_decode_i_64(arr[2]),
+    );
+  }
+
+  @protected
+  BudgetTransaction dco_decode_budget_transaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return BudgetTransaction(
+      id: dco_decode_String(arr[0]),
+      kind: dco_decode_String(arr[1]),
+      amount: dco_decode_f_64(arr[2]),
+      categoryId: dco_decode_opt_String(arr[3]),
+      note: dco_decode_opt_String(arr[4]),
+      occurredAt: dco_decode_i_64(arr[5]),
+      createdAt: dco_decode_i_64(arr[6]),
+      updatedAt: dco_decode_i_64(arr[7]),
+    );
+  }
+
+  @protected
+  ExpenseCategory dco_decode_expense_category(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return ExpenseCategory(
+      id: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      colorIndex: dco_decode_i_64(arr[2]),
+      updatedAt: dco_decode_i_64(arr[3]),
+    );
+  }
+
+  @protected
+  double dco_decode_f_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as double;
+  }
+
+  @protected
   PlatformInt64 dco_decode_i_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeI64(raw);
@@ -962,6 +1476,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
+  }
+
+  @protected
+  List<BudgetTransaction> dco_decode_list_budget_transaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_budget_transaction).toList();
+  }
+
+  @protected
+  List<ExpenseCategory> dco_decode_list_expense_category(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_expense_category).toList();
   }
 
   @protected
@@ -1123,6 +1649,65 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BudgetSettings sse_decode_budget_settings(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_resetAt = sse_decode_i_64(deserializer);
+    var var_currencySymbol = sse_decode_String(deserializer);
+    var var_updatedAt = sse_decode_i_64(deserializer);
+    return BudgetSettings(
+      resetAt: var_resetAt,
+      currencySymbol: var_currencySymbol,
+      updatedAt: var_updatedAt,
+    );
+  }
+
+  @protected
+  BudgetTransaction sse_decode_budget_transaction(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_kind = sse_decode_String(deserializer);
+    var var_amount = sse_decode_f_64(deserializer);
+    var var_categoryId = sse_decode_opt_String(deserializer);
+    var var_note = sse_decode_opt_String(deserializer);
+    var var_occurredAt = sse_decode_i_64(deserializer);
+    var var_createdAt = sse_decode_i_64(deserializer);
+    var var_updatedAt = sse_decode_i_64(deserializer);
+    return BudgetTransaction(
+      id: var_id,
+      kind: var_kind,
+      amount: var_amount,
+      categoryId: var_categoryId,
+      note: var_note,
+      occurredAt: var_occurredAt,
+      createdAt: var_createdAt,
+      updatedAt: var_updatedAt,
+    );
+  }
+
+  @protected
+  ExpenseCategory sse_decode_expense_category(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    var var_colorIndex = sse_decode_i_64(deserializer);
+    var var_updatedAt = sse_decode_i_64(deserializer);
+    return ExpenseCategory(
+      id: var_id,
+      name: var_name,
+      colorIndex: var_colorIndex,
+      updatedAt: var_updatedAt,
+    );
+  }
+
+  @protected
+  double sse_decode_f_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getFloat64();
+  }
+
+  @protected
   PlatformInt64 sse_decode_i_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getPlatformInt64();
@@ -1136,6 +1721,34 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <String>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_String(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<BudgetTransaction> sse_decode_list_budget_transaction(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <BudgetTransaction>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_budget_transaction(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<ExpenseCategory> sse_decode_list_expense_category(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ExpenseCategory>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_expense_category(deserializer));
     }
     return ans_;
   }
@@ -1360,6 +1973,51 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_budget_settings(
+    BudgetSettings self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_64(self.resetAt, serializer);
+    sse_encode_String(self.currencySymbol, serializer);
+    sse_encode_i_64(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_budget_transaction(
+    BudgetTransaction self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.kind, serializer);
+    sse_encode_f_64(self.amount, serializer);
+    sse_encode_opt_String(self.categoryId, serializer);
+    sse_encode_opt_String(self.note, serializer);
+    sse_encode_i_64(self.occurredAt, serializer);
+    sse_encode_i_64(self.createdAt, serializer);
+    sse_encode_i_64(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_expense_category(
+    ExpenseCategory self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.name, serializer);
+    sse_encode_i_64(self.colorIndex, serializer);
+    sse_encode_i_64(self.updatedAt, serializer);
+  }
+
+  @protected
+  void sse_encode_f_64(double self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putFloat64(self);
+  }
+
+  @protected
   void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putPlatformInt64(self);
@@ -1371,6 +2029,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_String(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_budget_transaction(
+    List<BudgetTransaction> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_budget_transaction(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_expense_category(
+    List<ExpenseCategory> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_expense_category(item, serializer);
     }
   }
 

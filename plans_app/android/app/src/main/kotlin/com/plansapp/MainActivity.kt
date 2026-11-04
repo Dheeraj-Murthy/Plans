@@ -50,6 +50,9 @@ class MainActivity : FlutterActivity() {
         if (action == "add_task") {
             channel.invokeMethod("openAddTask", null)
         }
+        if (action == "open_budget") {
+            channel.invokeMethod("openBudget", null)
+        }
         if (taskId != null) {
             channel.invokeMethod("openTask", taskId)
         }
@@ -68,6 +71,8 @@ class MainActivity : FlutterActivity() {
                     val view = i?.getStringExtra("current_view")
                     if (action == "add_task") {
                         result.success(mapOf("action" to "add_task"))
+                    } else if (action == "open_budget") {
+                        result.success(mapOf("action" to "open_budget"))
                     } else if (taskId != null) {
                         result.success(mapOf("action" to "open_task", "task_id" to taskId, "view" to (view ?: "")))
                     } else {

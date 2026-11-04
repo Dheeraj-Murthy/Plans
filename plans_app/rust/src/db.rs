@@ -86,6 +86,61 @@ fn run_migrations(conn: &Connection) -> Result<(), AppError> {
         "INSERT OR IGNORE INTO sync_state (id, snapshot_version) VALUES (1, 0);"
     ).ok();
 
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS expense_categories (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            color_index INTEGER NOT NULL DEFAULT 0,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS budget_transactions (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category_id TEXT,
+            note TEXT,
+            occurred_at INTEGER NOT NULL,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_budget_transactions_occurred_at ON budget_transactions(occurred_at);
+        CREATE TABLE IF NOT EXISTS budget_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            reset_at INTEGER NOT NULL DEFAULT 0,
+            currency_symbol TEXT NOT NULL DEFAULT '₹',
+            updated_at INTEGER NOT NULL DEFAULT 0
+        );",
+    )
+    .ok();
+    conn.execute_batch("INSERT OR IGNORE INTO budget_settings (id, reset_at, currency_symbol, updated_at) VALUES (1, 0, '₹', 0);")
+        .ok();
+
+    let category_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM expense_categories WHERE is_deleted = 0", [], |r| {
+            r.get(0)
+        })
+        .unwrap_or(0);
+    if category_count == 0 {
+        let now = chrono::Utc::now().timestamp_millis();
+        for (id, name, color_index) in [
+            ("food", "Food", 0),
+            ("transport", "Transport", 1),
+            ("shopping", "Shopping", 2),
+            ("bills", "Bills", 3),
+            ("entertainment", "Entertainment", 4),
+            ("other", "Other", 0),
+        ] {
+            conn.execute(
+                "INSERT INTO expense_categories (id, name, color_index, is_deleted, created_at, updated_at) VALUES (?1, ?2, ?3, 0, ?4, ?4)",
+                rusqlite::params![id, name, color_index, now],
+            )
+            .ok();
+        }
+    }
+
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM projects WHERE is_deleted = 0", [], |r| {
             r.get(0)

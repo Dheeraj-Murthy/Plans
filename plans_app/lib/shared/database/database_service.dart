@@ -7,10 +7,14 @@ import 'package:plans_app/src/rust/api.dart' as rust_api;
 import 'package:plans_app/src/rust/api/tasks.dart' as rust_tasks;
 import 'package:plans_app/src/rust/api/projects.dart' as rust_projects;
 import 'package:plans_app/src/rust/api/subtasks.dart' as rust_subtasks;
+import 'package:plans_app/src/rust/api/budget.dart' as rust_budget;
 import 'package:plans_app/src/rust/models.dart' as rust_models;
 import 'package:plans_app/features/tasks/models/task.dart';
 import 'package:plans_app/features/projects/models/project.dart';
 import 'package:plans_app/features/tasks/models/subtask.dart';
+import 'package:plans_app/features/budget/models/expense_category.dart';
+import 'package:plans_app/features/budget/models/budget_transaction.dart';
+import 'package:plans_app/features/budget/models/budget_settings.dart';
 
 final databaseServiceProvider = Provider<DatabaseService>((ref) {
   throw UnimplementedError('DatabaseService must be overridden in ProviderScope');
@@ -343,6 +347,185 @@ class DatabaseService {
     }
   }
 
+  // ── Budget: expense categories ──────────────────────────────────────
+
+  Future<List<ExpenseCategory>> getExpenseCategories() async {
+    try {
+      final raw = await rust_budget.getExpenseCategories();
+      return raw.map(_rustCategoryToDomain).toList();
+    } catch (e, st) {
+      debugPrint('DatabaseService.getExpenseCategories failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<ExpenseCategory> insertExpenseCategory({
+    required String name,
+    required int colorIndex,
+  }) async {
+    try {
+      final raw = await rust_budget.createExpenseCategory(
+        name: name,
+        colorIndex: colorIndex,
+      );
+      return _rustCategoryToDomain(raw);
+    } catch (e, st) {
+      debugPrint('DatabaseService.insertExpenseCategory failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> updateExpenseCategory(ExpenseCategory category) async {
+    try {
+      await rust_budget.updateExpenseCategory(
+        id: category.id,
+        name: category.name,
+        colorIndex: category.colorIndex,
+      );
+    } catch (e, st) {
+      debugPrint('DatabaseService.updateExpenseCategory failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteExpenseCategory(String id) async {
+    try {
+      await rust_budget.deleteExpenseCategory(id: id);
+    } catch (e, st) {
+      debugPrint('DatabaseService.deleteExpenseCategory failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> upsertExpenseCategory(ExpenseCategory category) async {
+    try {
+      final json = jsonEncode({
+        'id': category.id,
+        'name': category.name,
+        'color_index': category.colorIndex,
+        'updated_at': category.updatedAt.millisecondsSinceEpoch,
+      });
+      await rust_budget.upsertExpenseCategory(categoryJson: json);
+    } catch (e, st) {
+      debugPrint('DatabaseService.upsertExpenseCategory failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  // ── Budget: transactions (top-ups + expenses, one ledger) ───────────
+
+  Future<List<BudgetTransaction>> getBudgetTransactions() async {
+    try {
+      final raw = await rust_budget.getBudgetTransactions();
+      return raw.map(_rustTransactionToDomain).toList();
+    } catch (e, st) {
+      debugPrint('DatabaseService.getBudgetTransactions failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<BudgetTransaction> insertBudgetTransaction({
+    required TransactionType type,
+    required double amount,
+    String? categoryId,
+    String? note,
+    DateTime? occurredAt,
+  }) async {
+    try {
+      final raw = await rust_budget.createBudgetTransaction(
+        kind: transactionTypeToString(type),
+        amount: amount,
+        categoryId: categoryId,
+        note: note,
+        occurredAt: (occurredAt ?? DateTime.now()).millisecondsSinceEpoch,
+      );
+      return _rustTransactionToDomain(raw);
+    } catch (e, st) {
+      debugPrint('DatabaseService.insertBudgetTransaction failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> updateBudgetTransaction(BudgetTransaction transaction) async {
+    try {
+      await rust_budget.updateBudgetTransaction(
+        transactionJson: _transactionToJson(transaction),
+      );
+    } catch (e, st) {
+      debugPrint('DatabaseService.updateBudgetTransaction failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteBudgetTransaction(String id) async {
+    try {
+      await rust_budget.deleteBudgetTransaction(id: id);
+    } catch (e, st) {
+      debugPrint('DatabaseService.deleteBudgetTransaction failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<void> upsertBudgetTransaction(BudgetTransaction transaction) async {
+    try {
+      await rust_budget.upsertBudgetTransaction(
+        transactionJson: _transactionToJson(transaction),
+      );
+    } catch (e, st) {
+      debugPrint('DatabaseService.upsertBudgetTransaction failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  String _transactionToJson(BudgetTransaction t) {
+    return jsonEncode({
+      'id': t.id,
+      'kind': transactionTypeToString(t.type),
+      'amount': t.amount,
+      'category_id': t.categoryId,
+      'note': t.note,
+      'occurred_at': t.occurredAt.millisecondsSinceEpoch,
+      'created_at': t.createdAt.millisecondsSinceEpoch,
+      'updated_at': t.updatedAt.millisecondsSinceEpoch,
+    });
+  }
+
+  // ── Budget: settings ──────────────────────────────────────────────────
+
+  Future<BudgetSettings> getBudgetSettings() async {
+    try {
+      final raw = await rust_budget.getBudgetSettings();
+      return _rustSettingsToDomain(raw);
+    } catch (e, st) {
+      debugPrint('DatabaseService.getBudgetSettings failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<BudgetSettings> updateBudgetSettings({
+    required String currencySymbol,
+  }) async {
+    try {
+      final raw = await rust_budget.updateBudgetSettings(
+        currencySymbol: currencySymbol,
+      );
+      return _rustSettingsToDomain(raw);
+    } catch (e, st) {
+      debugPrint('DatabaseService.updateBudgetSettings failed: $e\n$st');
+      rethrow;
+    }
+  }
+
+  Future<DateTime> resetBudget() async {
+    try {
+      final ms = await rust_budget.resetBudget();
+      return DateTime.fromMillisecondsSinceEpoch(ms.toInt());
+    } catch (e, st) {
+      debugPrint('DatabaseService.resetBudget failed: $e\n$st');
+      rethrow;
+    }
+  }
+
   Task _rustTaskToDomain(rust_models.Task t) {
     return Task(
       id: t.id,
@@ -381,6 +564,36 @@ class DatabaseService {
       name: p.name,
       colorIndex: p.colorIndex.toInt(),
       updatedAt: DateTime.fromMillisecondsSinceEpoch(p.updatedAt.toInt()),
+    );
+  }
+
+  ExpenseCategory _rustCategoryToDomain(rust_models.ExpenseCategory c) {
+    return ExpenseCategory(
+      id: c.id,
+      name: c.name,
+      colorIndex: c.colorIndex.toInt(),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(c.updatedAt.toInt()),
+    );
+  }
+
+  BudgetTransaction _rustTransactionToDomain(rust_models.BudgetTransaction t) {
+    return BudgetTransaction(
+      id: t.id,
+      type: transactionTypeFromString(t.kind),
+      amount: t.amount,
+      categoryId: t.categoryId,
+      note: t.note,
+      occurredAt: DateTime.fromMillisecondsSinceEpoch(t.occurredAt.toInt()),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(t.createdAt.toInt()),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(t.updatedAt.toInt()),
+    );
+  }
+
+  BudgetSettings _rustSettingsToDomain(rust_models.BudgetSettings s) {
+    return BudgetSettings(
+      resetAt: DateTime.fromMillisecondsSinceEpoch(s.resetAt.toInt()),
+      currencySymbol: s.currencySymbol,
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(s.updatedAt.toInt()),
     );
   }
 }

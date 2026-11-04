@@ -13,6 +13,8 @@ import 'routing/app_router.dart';
 import 'shared/database/database_service.dart';
 import 'shared/notifications/notification_service.dart';
 import 'features/tasks/widgets/quick_add_app.dart';
+import 'features/budget/widgets/quick_add_transaction_app.dart';
+import 'features/budget/models/budget_transaction.dart';
 import 'package:home_widget/home_widget.dart';
 import 'shared/quickadd/quickadd_server.dart';
 
@@ -74,6 +76,21 @@ void main() async {
       ProviderScope(
         overrides: [databaseServiceProvider.overrideWithValue(db)],
         child: const QuickAddApp(),
+      ),
+    );
+    return;
+  }
+
+  if (initialIntent?['action'] == 'quick_add_transaction') {
+    // Launched from the Budget widget's "+ Expense"/"+ Money" buttons
+    // (QuickAddTransactionActivity) — same shape as the task quick-add above.
+    final type = initialIntent?['transaction_type'] == 'topup'
+        ? TransactionType.topup
+        : TransactionType.expense;
+    runApp(
+      ProviderScope(
+        overrides: [databaseServiceProvider.overrideWithValue(db)],
+        child: QuickAddTransactionApp(initialType: type),
       ),
     );
     return;

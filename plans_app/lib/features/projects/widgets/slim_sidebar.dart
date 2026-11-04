@@ -13,6 +13,7 @@ import '../../../shared/widgets/sidebar/add_project_button.dart';
 import '../../../shared/sync/sync_indicator.dart';
 import '../../tasks/providers/task_provider.dart';
 import '../../../shared/helpers/task_helpers.dart';
+import '../../../shell/main_tab_provider.dart';
 
 class SlimSidebar extends ConsumerWidget {
   const SlimSidebar({super.key});
@@ -21,10 +22,16 @@ class SlimSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final projects = ref.watch(projectsProvider);
     final selection = ref.watch(sidebarSelectionProvider);
+    final mainTab = ref.watch(mainTabProvider);
 
     final inboxCount = ref.watch(inboxCountProvider);
     final timelineCount = ref.watch(timelineCountProvider);
     final completedCount = ref.watch(completedCountProvider);
+
+    void selectTasksView(SidebarSelection target) {
+      ref.read(mainTabProvider.notifier).select(MainTab.tasks);
+      ref.read(sidebarSelectionProvider.notifier).select(target);
+    }
 
     return Container(
       width: AppSpacing.sidebarWidth,
@@ -49,31 +56,34 @@ class SlimSidebar extends ConsumerWidget {
             icon: Icons.inbox_rounded,
             label: 'Inbox',
             count: inboxCount,
-            isActive: selection is ViewSelection &&
+            isActive: mainTab == MainTab.tasks &&
+                selection is ViewSelection &&
                 selection.view == ViewType.inbox,
-            onTap: () => ref
-                .read(sidebarSelectionProvider.notifier)
-                .select(const ViewSelection(ViewType.inbox)),
+            onTap: () => selectTasksView(const ViewSelection(ViewType.inbox)),
           ),
           SidebarItem(
             icon: Icons.calendar_month_rounded,
             label: 'Timeline',
             count: timelineCount,
-            isActive: selection is ViewSelection &&
+            isActive: mainTab == MainTab.tasks &&
+                selection is ViewSelection &&
                 selection.view == ViewType.timeline,
-            onTap: () => ref
-                .read(sidebarSelectionProvider.notifier)
-                .select(const ViewSelection(ViewType.timeline)),
+            onTap: () => selectTasksView(const ViewSelection(ViewType.timeline)),
           ),
           SidebarItem(
             icon: Icons.check_circle_outline_rounded,
             label: 'Completed',
             count: completedCount,
-            isActive: selection is ViewSelection &&
+            isActive: mainTab == MainTab.tasks &&
+                selection is ViewSelection &&
                 selection.view == ViewType.completed,
-            onTap: () => ref
-                .read(sidebarSelectionProvider.notifier)
-                .select(const ViewSelection(ViewType.completed)),
+            onTap: () => selectTasksView(const ViewSelection(ViewType.completed)),
+          ),
+          SidebarItem(
+            icon: Icons.account_balance_wallet_rounded,
+            label: 'Budget',
+            isActive: mainTab == MainTab.budget,
+            onTap: () => ref.read(mainTabProvider.notifier).select(MainTab.budget),
           ),
 
           // Projects section
@@ -176,11 +186,13 @@ class _ProjectList extends ConsumerWidget {
           projectId: project.id,
           colorIndex: project.colorIndex,
           count: count > 0 ? count : null,
-          isActive: selection is ProjectSelection &&
+          isActive: ref.watch(mainTabProvider) == MainTab.tasks &&
+              selection is ProjectSelection &&
               selection.projectId == project.id,
-          onTap: () => ref
-              .read(sidebarSelectionProvider.notifier)
-              .select(ProjectSelection(project.id)),
+          onTap: () {
+            ref.read(mainTabProvider.notifier).select(MainTab.tasks);
+            ref.read(sidebarSelectionProvider.notifier).select(ProjectSelection(project.id));
+          },
         );
       },
     );

@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 class AppTypography {
   static const String _family = 'Inter';
 
+  static TextStyle get displayLarge => const TextStyle(
+        fontFamily: _family,
+        fontSize: 52,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -1,
+        height: 1.0,
+      );
+
   static TextStyle get headingLarge => const TextStyle(
         fontFamily: _family,
         fontSize: 28,
