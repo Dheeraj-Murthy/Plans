@@ -234,8 +234,19 @@ class TasksNotifier extends Notifier<List<Task>> {
       _db.getTasks().then((tasks) async {
         final deduped = await _db.dedupeRecurrenceRollovers(tasks);
         state = deduped;
-        NotificationService.rescheduleAll(deduped);
-        WidgetBridge.notifyUpdate(allTasks: state, allProjects: ref.read(projectsProvider));
+        await NotificationService.rescheduleAll(deduped);
+        // Awaited (unlike the old fire-and-forget call) so `firstLoad`
+        // genuinely means this load's widget-cache write has landed. A
+        // freshly-spun engine (QuickAddActivity) triggers this _load() as a
+        // side effect of its *first* tasksProvider read, which can happen
+        // inside addTask()'s own caller (AddTaskSheet._submit) -- this
+        // chain and addTask()'s insert-then-notify chain used to race, and
+        // this one (DB read + dedup + reschedule-all-alarms) is slower, so
+        // its unawaited notifyUpdate reliably finished last and clobbered
+        // the widget cache with the pre-insert task list, even though the
+        // task landed fine in the real DB. addTask() now awaits firstLoad
+        // before it does anything, which serializes the two chains instead.
+        await WidgetBridge.notifyUpdate(allTasks: state, allProjects: ref.read(projectsProvider));
         await advanceMissedRecurringTasks();
       }).catchError((e, st) {
         debugPrint('TasksNotifier._load failed: $e\n$st');
@@ -353,6 +364,13 @@ class TasksNotifier extends Notifier<List<Task>> {
     int? reminderMinutes,
     String? recurrence,
   }) async {
+    // On a freshly-spun engine (e.g. QuickAddActivity), this may be the
+    // very first read of this provider -- build()'s _load() won't have
+    // settled `state` yet. Waiting here means the `state = [...state,
+    // task]` below always appends onto the real, fully-loaded list, and
+    // this function's own widget-cache write always runs after _load()'s,
+    // never racing it. A no-op await once the app is already warm.
+    await firstLoad;
     final task = await _db.insertTask(
       title: title,
       description: description,
