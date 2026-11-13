@@ -176,6 +176,26 @@ class TasksNotifier extends Notifier<List<Task>> {
   bool _advancingMissedRecurrence = false;
   final Completer<void> _firstLoadCompleter = Completer<void>();
 
+  // Mutations like toggleTask fire their DB write unawaited so the UI can
+  // update optimistically without blocking on disk IO. That's fine on its
+  // own, but SyncService._downloadIfNewer() takes a snapshot of local state
+  // (a plain `_db.getTasks()` read) right before swapping in a remote DB —
+  // if that snapshot races ahead of one of these in-flight writes, it can
+  // capture stale (e.g. still-incomplete) state, which then gets replayed
+  // back over the fresh remote state and silently "uncompletes" a task or
+  // resurrects a pre-mutation row. Every unawaited write below is tracked
+  // here so SyncService can await full quiescence first (see
+  // awaitPendingWrites, called from _downloadIfNewer just before its
+  // snapshot reads).
+  final List<Future<void>> _pendingWrites = [];
+
+  void _track(Future<void> future) {
+    _pendingWrites.add(future);
+    future.whenComplete(() => _pendingWrites.remove(future));
+  }
+
+  Future<void> awaitPendingWrites() => Future.wait(List.of(_pendingWrites));
+
   // Callers that need `state` to actually reflect the DB (e.g. applying a
   // widget toggle by id) must await this first — `build()` returns `[]`
   // synchronously and `_load()` populates state asynchronously after, so
@@ -233,6 +253,14 @@ class TasksNotifier extends Notifier<List<Task>> {
     unawaited(
       _db.getTasks().then((tasks) async {
         final deduped = await _db.dedupeRecurrenceRollovers(tasks);
+        // dedupeRecurrenceRollovers soft-deletes duplicate rows locally
+        // (see its own doc comment for how they arise) but never marks
+        // sync dirty itself, so the fix never reached other devices and
+        // could be undone by their next upload. Mark dirty here instead,
+        // right where the removal is actually observed.
+        if (deduped.length != tasks.length) {
+          ref.read(syncServiceProvider.notifier).markDirty();
+        }
         state = deduped;
         await NotificationService.rescheduleAll(deduped);
         // Awaited (unlike the old fire-and-forget call) so `firstLoad`
@@ -291,7 +319,18 @@ class TasksNotifier extends Notifier<List<Task>> {
       }
       if (nextDue == null) continue;
 
-      try {
+      // Deterministic, not random — a second device independently rolling
+      // the same missed task forward computes the same (source id, next due)
+      // pair and therefore the same id, so create_task's ON CONFLICT(id) DO
+      // NOTHING collapses both devices' inserts into one row instead of
+      // surviving the sync merge as two "next occurrence" duplicates.
+      final nextId = '${task.id}_next_${nextDue.millisecondsSinceEpoch}';
+
+      // Registered in _pendingWrites (even though awaited directly below)
+      // so SyncService.awaitPendingWrites can see this whole detach+insert
+      // sequence as in-flight if its local-state snapshot read interleaves
+      // mid-sequence, rather than only knowing about truly-unawaited calls.
+      final op = () async {
         // Detach the series from the missed task so it can't be re-rolled
         // forward again on the next launch — it stays as a missed, visible,
         // completable task, while the new one carries the series onward.
@@ -305,6 +344,7 @@ class TasksNotifier extends Notifier<List<Task>> {
           projectId: task.projectId,
           reminderMinutes: task.reminderMinutes,
           recurrence: task.recurrence,
+          id: nextId,
         );
         final idx = state.indexWhere((t) => t.id == task.id);
         final newState = List<Task>.of(state);
@@ -318,6 +358,10 @@ class TasksNotifier extends Notifier<List<Task>> {
               ? ReminderStyle.fullScreenAlarm
               : ReminderStyle.notification,
         ));
+      }();
+      _track(op);
+      try {
+        await op;
       } catch (e, st) {
         debugPrint('TasksNotifier.advanceMissedRecurringTasks failed for ${task.id}: $e\n$st');
       }
@@ -344,6 +388,9 @@ class TasksNotifier extends Notifier<List<Task>> {
     try {
       final tasks = await _db.getTasks();
       final deduped = await _db.dedupeRecurrenceRollovers(tasks);
+      if (deduped.length != tasks.length) {
+        ref.read(syncServiceProvider.notifier).markDirty();
+      }
       state = deduped;
       NotificationService.rescheduleAll(deduped);
       WidgetBridge.notifyUpdate(
@@ -437,7 +484,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     newState[index] = toggled;
     state = newState;
 
-    unawaited(_db.updateTask(toggled).catchError((e, st) => _revertOnError(e, st, 'toggleTask')));
+    _track(_db.updateTask(toggled).catchError((e, st) => _revertOnError(e, st, 'toggleTask')));
     ref.read(syncServiceProvider.notifier).markDirty();
     if (toggled.isCompleted) {
       unawaited(NotificationService.cancelForTask(id));
@@ -451,7 +498,13 @@ class TasksNotifier extends Notifier<List<Task>> {
     }
 
     if (nextDue != null) {
-      unawaited(_db.insertTask(
+      // Deterministic, not random — see advanceMissedRecurringTasks's
+      // matching comment. If the resume sweep races this same toggle on
+      // another device (or this one), both compute the same (source id,
+      // next due) pair and the same id, so create_task's ON CONFLICT(id)
+      // DO NOTHING collapses the two inserts into one row.
+      final nextId = '${task.id}_next_${nextDue.millisecondsSinceEpoch}';
+      _track(_db.insertTask(
         title: task.title,
         description: task.description,
         dueDate: nextDue,
@@ -459,6 +512,7 @@ class TasksNotifier extends Notifier<List<Task>> {
         projectId: task.projectId,
         reminderMinutes: task.reminderMinutes,
         recurrence: task.recurrence,
+        id: nextId,
       ).then((nextTask) {
         state = [...state, nextTask];
         ref.read(syncServiceProvider.notifier).markDirty();
@@ -477,7 +531,7 @@ class TasksNotifier extends Notifier<List<Task>> {
   Task? deleteTask(String id) {
     final task = state.where((t) => t.id == id).firstOrNull;
     state = state.where((t) => t.id != id).toList();
-    unawaited(_db.deleteTask(id).catchError((e, st) => _revertOnError(e, st, 'deleteTask')));
+    _track(_db.deleteTask(id).catchError((e, st) => _revertOnError(e, st, 'deleteTask')));
     ref.read(syncServiceProvider.notifier).markDirty();
     NotificationService.cancelForTask(id);
     _debouncedWidgetUpdate();
@@ -501,7 +555,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     final completed = state.where((t) => t.isCompleted).toList();
     if (completed.isEmpty) return;
     for (final t in completed) {
-      unawaited(_db.deleteTask(t.id).catchError((e, st) => _revertOnError(e, st, 'clearCompleted')));
+      _track(_db.deleteTask(t.id).catchError((e, st) => _revertOnError(e, st, 'clearCompleted')));
       NotificationService.cancelForTask(t.id);
     }
     state = state.where((t) => !t.isCompleted).toList();
@@ -515,7 +569,7 @@ class TasksNotifier extends Notifier<List<Task>> {
     final newState = List<Task>.of(state);
     newState[idx] = updated;
     state = newState;
-    unawaited(_db.updateTask(updated).catchError((e, st) => _revertOnError(e, st, 'updateTask')));
+    _track(_db.updateTask(updated).catchError((e, st) => _revertOnError(e, st, 'updateTask')));
     ref.read(syncServiceProvider.notifier).markDirty();
     unawaited(NotificationService.scheduleForTask(
       updated,

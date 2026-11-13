@@ -299,6 +299,7 @@ fn wire__crate__api__tasks__create_task_impl(
             let api_project_id = <String>::sse_decode(&mut deserializer);
             let api_reminder_minutes = <Option<i64>>::sse_decode(&mut deserializer);
             let api_recurrence = <Option<String>>::sse_decode(&mut deserializer);
+            let api_id = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, String>((move || {
@@ -310,6 +311,7 @@ fn wire__crate__api__tasks__create_task_impl(
                         api_project_id,
                         api_reminder_minutes,
                         api_recurrence,
+                        api_id,
                     )?;
                     Ok(output_ok)
                 })())

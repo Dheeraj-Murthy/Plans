@@ -18,6 +18,7 @@ Future<Task> createTask({
   required String projectId,
   PlatformInt64? reminderMinutes,
   String? recurrence,
+  String? id,
 }) => RustLib.instance.api.crateApiTasksCreateTask(
   title: title,
   description: description,
@@ -26,6 +27,7 @@ Future<Task> createTask({
   projectId: projectId,
   reminderMinutes: reminderMinutes,
   recurrence: recurrence,
+  id: id,
 );
 
 Future<Task> updateTask({required String taskJson}) =>

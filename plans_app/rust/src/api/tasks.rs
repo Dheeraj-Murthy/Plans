@@ -38,8 +38,16 @@ pub fn create_task(
     project_id: String,
     reminder_minutes: Option<i64>,
     recurrence: Option<String>,
+    id: Option<String>,
 ) -> Result<Task, String> {
-    let id = Uuid::new_v4().to_string();
+    // Callers rolling a recurring task forward (toggleTask/
+    // advanceMissedRecurringTasks) pass a deterministic id derived from
+    // (source task id, next due date) instead of leaving this random. Two
+    // devices independently advancing the same recurring task compute the
+    // same next-due date and therefore the same id, so the id-keyed sync
+    // merge (upsert_task) collapses their two local inserts into one row
+    // instead of both surviving as distinct "next occurrence" duplicates.
+    let id = id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let now = chrono::Utc::now().timestamp_millis();
     db::with_db(|conn| {
         let max_order: i64 = conn
@@ -60,12 +68,42 @@ pub fn create_task(
             reminder_minutes,
             recurrence,
         };
+        // ON CONFLICT(id) DO NOTHING — a caller-supplied deterministic id
+        // (see above) can legitimately already exist if another device won
+        // the race to create this same logical next-occurrence first (via a
+        // sync merge landing before this local insert ran). Rather than
+        // erroring, re-fetch and return whichever row actually won so the
+        // caller always gets a valid Task back instead of a thrown
+        // constraint-violation that would otherwise trigger a full reload.
         conn.execute(
             "INSERT INTO tasks (id, title, description, due_date, priority, is_completed, project_id, created_at, updated_at, sort_order, reminder_minutes, recurrence) \
-             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7, ?8, ?9, ?10, ?11)",
+             VALUES (?1, ?2, ?3, ?4, ?5, 0, ?6, ?7, ?8, ?9, ?10, ?11) \
+             ON CONFLICT(id) DO NOTHING",
             rusqlite::params![task.id, task.title, task.description, task.due_date, task.priority, task.project_id, task.created_at, task.updated_at, task.sort_order, task.reminder_minutes, task.recurrence],
         )?;
-        Ok(task)
+        let saved = conn.query_row(
+            "SELECT id, title, description, due_date, priority, is_completed, is_deleted, project_id, created_at, updated_at, sort_order, reminder_minutes, recurrence \
+             FROM tasks WHERE id = ?1",
+            rusqlite::params![task.id],
+            |row| {
+                Ok(Task {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    description: row.get(2)?,
+                    due_date: row.get(3)?,
+                    priority: row.get(4)?,
+                    is_completed: row.get::<_, i64>(5)? == 1,
+                    is_deleted: row.get::<_, i64>(6)? == 1,
+                    project_id: row.get(7)?,
+                    created_at: row.get(8)?,
+                    updated_at: row.get(9)?,
+                    sort_order: row.get(10)?,
+                    reminder_minutes: row.get(11)?,
+                    recurrence: row.get(12)?,
+                })
+            },
+        )?;
+        Ok(saved)
     })
 }
 
@@ -165,9 +203,9 @@ mod tests {
     #[test]
     fn reorder_tasks_applies_requested_order() {
         let _db = init_test_db();
-        let a = create_task("A".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
-        let b = create_task("B".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
-        let c = create_task("C".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
+        let a = create_task("A".to_string(), None, None, 0, "default".to_string(), None, None, None).unwrap();
+        let b = create_task("B".to_string(), None, None, 0, "default".to_string(), None, None, None).unwrap();
+        let c = create_task("C".to_string(), None, None, 0, "default".to_string(), None, None, None).unwrap();
 
         reorder_tasks(vec![c.id.clone(), a.id.clone(), b.id.clone()]).unwrap();
 
@@ -179,7 +217,7 @@ mod tests {
     #[test]
     fn upsert_task_is_last_write_wins() {
         let _db = init_test_db();
-        let created = create_task("Original".to_string(), None, None, 0, "default".to_string(), None, None).unwrap();
+        let created = create_task("Original".to_string(), None, None, 0, "default".to_string(), None, None, None).unwrap();
 
         let stale = serde_json::json!({
             "id": created.id, "title": "Stale", "description": null, "due_date": null,
@@ -202,5 +240,27 @@ mod tests {
         upsert_task(fresh.to_string()).unwrap();
         let after_fresh = get_all_tasks().unwrap().into_iter().find(|t| t.id == created.id).unwrap();
         assert_eq!(after_fresh.title, "Fresh");
+    }
+
+    // Two devices rolling the same recurring task forward independently
+    // compute the same deterministic id and both call create_task with it —
+    // this must collapse into one row, not error or duplicate.
+    #[test]
+    fn create_task_with_existing_id_returns_existing_row_instead_of_duplicating() {
+        let _db = init_test_db();
+        let first = create_task(
+            "Next occurrence".to_string(), None, None, 0, "default".to_string(), None, None,
+            Some("deterministic-id-1".to_string()),
+        ).unwrap();
+
+        let second = create_task(
+            "Next occurrence (other device)".to_string(), None, None, 0, "default".to_string(), None, None,
+            Some("deterministic-id-1".to_string()),
+        ).unwrap();
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(second.title, "Next occurrence");
+        let all = get_all_tasks().unwrap();
+        assert_eq!(all.iter().filter(|t| t.id == "deterministic-id-1").count(), 1);
     }
 }

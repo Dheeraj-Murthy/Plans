@@ -155,6 +155,47 @@ void main() {
       container.dispose();
     });
 
+    test('two devices racing to complete the same recurring task do not create duplicate next-occurrence rows', () async {
+      // Two separate TasksNotifier instances sharing one DatabaseService
+      // model two devices that both loaded the same incomplete recurring
+      // task before either had seen the other's change (the actual race:
+      // each toggles from its own stale in-memory copy). Both must compute
+      // the same deterministic next-occurrence id so only one row survives.
+      final db = FakeDatabaseService();
+      final seed = createContainer(db);
+      await waitForTasks(seed);
+      await seed.read(tasksProvider.notifier).addTask(
+        title: 'Daily standup',
+        dueDate: DateTime.now().add(const Duration(hours: 1)),
+        recurrence: 'daily|1',
+      );
+      final original = seed.read(tasksProvider).first;
+      seed.dispose();
+
+      // Both devices load the same still-incomplete task independently,
+      // before either toggles — this is what makes it a genuine race.
+      final deviceA = createContainer(db);
+      await waitForTasks(deviceA);
+      final deviceB = createContainer(db);
+      await waitForTasks(deviceB);
+
+      deviceA.read(tasksProvider.notifier).toggleTask(original.id);
+      deviceB.read(tasksProvider.notifier).toggleTask(original.id);
+      await Future(() {});
+      await Future(() {});
+      await Future(() {});
+
+      final rows = await db.getTasks();
+      final nextRows = rows.where((t) => t.id != original.id).toList();
+      expect(nextRows.length, 1,
+          reason: 'both devices computed the next occurrence for the same '
+              'completed task and must collapse into a single row instead '
+              'of surviving as two "next occurrence" duplicates');
+
+      deviceA.dispose();
+      deviceB.dispose();
+    });
+
     // test('clearCompleted removes only completed tasks', () async {
     //   final db = FakeDatabaseService();
     //   final container = createContainer(db);

@@ -127,6 +127,14 @@ class DatabaseService {
     String projectId = 'default',
     int? reminderMinutes,
     String? recurrence,
+    // Callers rolling a recurring task forward to its next occurrence pass a
+    // deterministic id (derived from source task id + next due date) instead
+    // of leaving this null — see TasksNotifier.toggleTask/
+    // advanceMissedRecurringTasks. Two devices independently advancing the
+    // same recurring task compute the same id, so create_task collapses
+    // both local inserts into one row instead of surviving the sync merge
+    // as distinct duplicates.
+    String? id,
   }) async {
     try {
       final raw = await rust_tasks.createTask(
@@ -137,6 +145,7 @@ class DatabaseService {
         projectId: projectId,
         reminderMinutes: reminderMinutes,
         recurrence: recurrence,
+        id: id,
       );
       return _rustTaskToDomain(raw);
     } catch (e, st) {

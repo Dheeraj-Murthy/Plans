@@ -189,6 +189,15 @@ class SyncService extends Notifier<SyncStatus> {
     final dir = await getApplicationDocumentsDirectory();
     final dbPath = '${dir.path}/plans.db';
 
+    // Let any in-flight task mutation (completion, recurrence rollover,
+    // delete, etc.) finish writing before snapshotting local state — those
+    // writes fire unawaited for UI responsiveness, so without this a
+    // mutation could still be mid-flight here, get captured in a stale
+    // pre-write state, and then get replayed back over the just-installed
+    // fresh remote state below (e.g. "uncompleting" a task that was in fact
+    // already completed and synced from another device).
+    await ref.read(tasksProvider.notifier).awaitPendingWrites();
+
     // Snapshot local state as late as possible (right before the file swap)
     // to shrink the window in which a concurrent edit could land on the
     // about-to-be-replaced DB file and be lost.

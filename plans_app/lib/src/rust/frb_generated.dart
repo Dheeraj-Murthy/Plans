@@ -124,6 +124,7 @@ abstract class RustLibApi extends BaseApi {
     required String projectId,
     PlatformInt64? reminderMinutes,
     String? recurrence,
+    String? id,
   });
 
   Future<void> crateApiBudgetDeleteBudgetTransaction({required String id});
@@ -454,6 +455,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String projectId,
     PlatformInt64? reminderMinutes,
     String? recurrence,
+    String? id,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -466,6 +468,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(projectId, serializer);
           sse_encode_opt_box_autoadd_i_64(reminderMinutes, serializer);
           sse_encode_opt_String(recurrence, serializer);
+          sse_encode_opt_String(id, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -486,6 +489,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           projectId,
           reminderMinutes,
           recurrence,
+          id,
         ],
         apiImpl: this,
       ),
@@ -502,6 +506,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       "projectId",
       "reminderMinutes",
       "recurrence",
+      "id",
     ],
   );
 

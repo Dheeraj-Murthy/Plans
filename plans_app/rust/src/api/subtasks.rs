@@ -103,7 +103,7 @@ mod tests {
     use crate::api::tasks::create_task;
 
     fn make_task() -> String {
-        create_task("Parent".to_string(), None, None, 0, "default".to_string(), None, None)
+        create_task("Parent".to_string(), None, None, 0, "default".to_string(), None, None, None)
             .unwrap()
             .id
     }

@@ -60,9 +60,18 @@ class FakeDatabaseService extends DatabaseService {
     String projectId = 'default',
     int? reminderMinutes,
     String? recurrence,
+    String? id,
   }) async {
+    // Mirrors the real create_task's ON CONFLICT(id) DO NOTHING: a
+    // caller-supplied id that already exists returns the existing row
+    // instead of adding a duplicate, so provider tests can exercise the
+    // same two-devices-race-to-the-same-id collapse the real DB does.
+    if (id != null) {
+      final existing = _tasks.where((t) => t.id == id).firstOrNull;
+      if (existing != null) return existing;
+    }
     final task = Task(
-      id: const Uuid().v4(),
+      id: id ?? const Uuid().v4(),
       title: title,
       description: description,
       dueDate: dueDate,
