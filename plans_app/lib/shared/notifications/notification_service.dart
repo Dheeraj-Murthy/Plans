@@ -249,8 +249,10 @@ class NotificationService {
   /// Called by [AlarmFullScreenScreen] when it's dismissed (snoozed or
   /// completed), so the lock-screen-bypass flags don't stay on past the
   /// one alarm they were turned on for.
-  static Future<void> onFullScreenAlarmDismissed() =>
-      _setAlarmLockScreenVisible(false);
+  static Future<void> onFullScreenAlarmDismissed() {
+    _currentFullScreenAlarmId = null;
+    return _setAlarmLockScreenVisible(false);
+  }
 
   static void _onResponse(NotificationResponse response) {}
 
@@ -403,7 +405,15 @@ class NotificationService {
 
   static Future<void> cancelForTask(String taskId) async {
     if (!_initialized) return;
-    _currentFullScreenAlarmId = null;
+    // Only forget the on-screen alarm if it belongs to THIS task. This used
+    // to clear unconditionally, so scheduling/cancelling any other task (e.g.
+    // the recurrence rollover creating the next occurrence while the alarm
+    // is ringing) reset the guard and the next Alarm.ringing emission pushed
+    // a second full-screen alert for the same alarm.
+    final shown = _currentFullScreenAlarmId;
+    if (shown == _dueId(taskId) || shown == _reminderId(taskId)) {
+      _currentFullScreenAlarmId = null;
+    }
     _alarmInfoStore.alarmInfos.remove(_dueId(taskId));
     _alarmInfoStore.alarmInfos.remove(_reminderId(taskId));
     try {

@@ -301,11 +301,18 @@ class TasksNotifier extends Notifier<List<Task>> {
     }
   }
 
+  static const missedRecurrenceGrace = Duration(hours: 6);
+
   Future<void> _advanceMissedRecurringTasks() async {
     final now = DateTime.now();
     for (final task in List<Task>.of(state)) {
       if (task.recurrence == null || task.dueDate == null) continue;
       if (task.isCompleted || !task.dueDate!.isBefore(now)) continue;
+      // Grace period: a just-overdue task is likely ringing or about to be
+      // completed (possibly on another device whose completion hasn't synced
+      // yet). Rewriting it now would stamp a newer updated_at on the
+      // incomplete copy and win the last-write-wins merge over the completion.
+      if (now.difference(task.dueDate!) < missedRecurrenceGrace) continue;
 
       final rule = Recurrence.fromStorage(task.recurrence!);
       var nextDue = rule.nextOccurrence(task.dueDate!);
@@ -457,6 +464,15 @@ class TasksNotifier extends Notifier<List<Task>> {
     return task;
   }
 
+  /// Idempotent complete for callers that mean "mark done" (alarm screen),
+  /// not "flip". If the task was already completed — e.g. another device's
+  /// completion synced in before the tap — toggleTask would un-complete it.
+  void completeTask(String id) {
+    final task = state.where((t) => t.id == id).firstOrNull;
+    if (task == null || task.isCompleted) return;
+    toggleTask(id);
+  }
+
   bool toggleTask(String id) {
     final index = state.indexWhere((t) => t.id == id);
     if (index == -1) return false;
@@ -469,6 +485,17 @@ class TasksNotifier extends Notifier<List<Task>> {
     if (!wasCompleted && task.recurrence != null && task.dueDate != null) {
       final rule = Recurrence.fromStorage(task.recurrence!);
       nextDue = rule.nextOccurrence(task.dueDate!);
+      // Catch up past any other occurrences also already missed (mirrors
+      // _advanceMissedRecurringTasks's loop) — without this, completing a
+      // task overdue by several periods only advanced one period at a time,
+      // so the new row was itself still overdue and re-alarmed on the next
+      // resume sweep, requiring one "complete" tap per missed period.
+      final now = DateTime.now();
+      var guard = 0;
+      while (nextDue != null && !nextDue.isAfter(now) && guard < 1000) {
+        nextDue = rule.nextOccurrence(nextDue);
+        guard++;
+      }
       if (nextDue != null) {
         // Detach the series from the just-completed occurrence — mirrors
         // _advanceMissedRecurringTasks's detach. Without this, the original

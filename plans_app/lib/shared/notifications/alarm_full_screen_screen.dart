@@ -108,7 +108,7 @@ class _AlarmFullScreenScreenState extends ConsumerState<AlarmFullScreenScreen> {
     // do nothing.
     await ref.read(tasksProvider.notifier).firstLoad;
     if (!mounted) return;
-    ref.read(tasksProvider.notifier).toggleTask(widget.taskId);
+    ref.read(tasksProvider.notifier).completeTask(widget.taskId);
     if (!mounted) return;
     Navigator.of(context).pop();
   }

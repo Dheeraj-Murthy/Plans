@@ -105,6 +105,38 @@ void main() {
       container.dispose();
     });
 
+    test('advanceMissedRecurringTasks skips tasks overdue within the grace period', () async {
+      final db = FakeDatabaseService();
+      final fresh = await db.insertTask(
+        title: 'Just rang',
+        dueDate: DateTime.now().subtract(const Duration(minutes: 5)),
+        recurrence: 'daily|1',
+        priority: TaskPriority.critical.index,
+      );
+      final container = createContainer(db);
+      await waitForTasks(container);
+      await waitForTasks(container);
+
+      final tasks = container.read(tasksProvider);
+      expect(tasks.length, 1, reason: 'no next occurrence spawned yet');
+      expect(tasks.first.id, fresh.id);
+      expect(tasks.first.recurrence, 'daily|1');
+      container.dispose();
+    });
+
+    test('completeTask is idempotent and does not un-complete', () async {
+      final db = FakeDatabaseService();
+      final container = createContainer(db);
+      await waitForTasks(container);
+      await container.read(tasksProvider.notifier).addTask(title: 'Once');
+      final id = container.read(tasksProvider).first.id;
+      final n = container.read(tasksProvider.notifier);
+      n.completeTask(id);
+      n.completeTask(id);
+      expect(container.read(tasksProvider).first.isCompleted, true);
+      container.dispose();
+    });
+
     test('advanceMissedRecurringTasks leaves on-time recurring tasks alone', () async {
       final db = FakeDatabaseService();
       await db.insertTask(
@@ -152,6 +184,37 @@ void main() {
       // A sweep right after completing must not create a second "next" task.
       await container.read(tasksProvider.notifier).advanceMissedRecurringTasks();
       expect(container.read(tasksProvider).length, 2);
+      container.dispose();
+    });
+
+    test('toggleTask on a task overdue by several periods jumps straight to a future occurrence', () async {
+      // Regression test: completing a critical recurring task that's been
+      // overdue for days must not create a next occurrence that's itself
+      // still overdue — that forced the user to tap "Complete" once per
+      // missed period, each time seeing what looked like the same alarm
+      // reappear, because the un-caught-up row re-alarmed on the next
+      // resume sweep instead of landing in the future immediately.
+      final db = FakeDatabaseService();
+      final container = createContainer(db);
+      await waitForTasks(container);
+      await container.read(tasksProvider.notifier).addTask(
+        title: 'Take pills',
+        dueDate: DateTime.now().subtract(const Duration(days: 3)),
+        recurrence: 'daily|1',
+        priority: TaskPriority.critical,
+      );
+      final original = container.read(tasksProvider).first;
+
+      container.read(tasksProvider.notifier).toggleTask(original.id);
+      await Future(() {});
+      await Future(() {});
+
+      final tasks = container.read(tasksProvider);
+      expect(tasks.length, 2);
+      final next = tasks.firstWhere((t) => t.id != original.id);
+      expect(next.dueDate!.isAfter(DateTime.now()), true,
+          reason: 'one completion must catch up past every missed period, '
+              'not advance by a single day at a time');
       container.dispose();
     });
 

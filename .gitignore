@@ -9,7 +9,7 @@
 *.iml
 
 # Claude
-.claude/settings.local.json
+.claude/*
 CLAUDE.md
 AGENTS.md
 
