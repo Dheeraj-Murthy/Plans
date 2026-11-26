@@ -10,6 +10,7 @@ import '../widgets/spending_donut_chart.dart';
 import '../widgets/spending_trend_chart.dart';
 import '../widgets/transaction_tile.dart';
 import 'manage_categories_screen.dart';
+import 'history_screen.dart';
 import '../../../shared/helpers/currency.dart';
 import '../../../theme/app_spacing.dart';
 import '../../../theme/app_theme.dart';
@@ -132,6 +133,22 @@ class BudgetScreen extends ConsumerWidget {
                     currencySymbol: settings.currencySymbol,
                   ),
               ],
+              const SizedBox(height: AppSpacing.md),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                  ),
+                  icon: const Icon(Icons.history_rounded, size: 18),
+                  label: const Text('History'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.border),
+                    padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+                  ),
+                ),
+              ),
             ],
           ),
         ),

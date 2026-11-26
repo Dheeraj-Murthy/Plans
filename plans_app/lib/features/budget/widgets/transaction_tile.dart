@@ -88,7 +88,7 @@ class TransactionTile extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
-      builder: (_) => AddTransactionSheet(initialType: transaction.type),
+      builder: (_) => AddTransactionSheet(initialType: transaction.type, existingTransaction: transaction),
     );
   }
 
